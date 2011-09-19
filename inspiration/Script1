@@ -1,0 +1,38 @@
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="2.0" 
+    xpath-default-namespace="http://www.tei-c.org/ns/1.0" xmlns:tei="http://www.tei-c.org/ns/1.0">
+    <xsl:output method="xml" indent="yes" encoding="UTF-8”/>
+    <xsl:template match="node()|@*">
+        <!-- Copy the current node -->
+        <xsl:copy>
+            <!-- Including any child nodes it has and any attributes -->
+            <xsl:apply-templates select="node()|@*"/>
+        </xsl:copy>
+    </xsl:template>
+    <xsl:template match="p">
+        <xsl:variable name="cur-p" select="generate-id(.)"/>
+        <p><xsl:choose>
+            <xsl:when test="lb">
+                <xsl:for-each select="lb">
+                    <lb>
+                        <xsl:sequence select="parent::p/@*"/>
+
+                        <xsl:apply-templates
+                            select="preceding::*[parent::p[generate-id()=$cur-p]]|preceding::text()[parent::p[generate-id()=$cur-p]]"/>
+                        <xsl:apply-templates
+                            select="preceding::*/@*[parent::p[generate-id()=$cur-p]]"/>
+                    </lb>
+                    <lb>
+                        <xsl:sequence select="parent::p/@*"/>
+                        <xsl:sequence
+                            select="following::*[parent::p[generate-id()=$cur-p]]|following::text()[parent::p[generate-id()=$cur-p]]"/>
+                        <xsl:sequence select="following::*/@*[parent::p[generate-id()=$cur-p]]"/>
+                    </lb>
+                </xsl:for-each>
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:sequence select="."/>
+            </xsl:otherwise>
+        </xsl:choose>
+        </p>
+    </xsl:template>
+</xsl:stylesheet>

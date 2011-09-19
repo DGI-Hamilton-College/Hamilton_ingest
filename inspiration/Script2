@@ -1,0 +1,127 @@
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="2.0"
+    xpath-default-namespace="http://www.tei-c.org/ns/1.0" xmlns="http://www.tei-c.org/ns/1.0">
+    <xsl:output method="xhtml" indent="yes" encoding="UTF-8"
+        doctype-public="-//W3C//DTD XHTML 1.0 Strict//EN"/>
+    <xsl:strip-space elements="*"/>
+
+    <xsl:variable name="step1">
+        <xsl:call-template name="one"/>
+    </xsl:variable>
+
+    <xsl:variable name="step2">
+        <xsl:apply-templates select="$step1" mode="step2"/>
+    </xsl:variable>
+
+    <xsl:template match="*" mode="step1">
+        <xsl:copy>
+            <xsl:sequence select="@*"/>
+            <xsl:apply-templates mode="step1"/>
+        </xsl:copy>
+    </xsl:template>
+
+    <xsl:template match="del" mode="step1">
+        <xsl:variable name="cur-del" select="generate-id(.)"/>
+        <xsl:choose>
+            <xsl:when test="lb">
+                <xsl:for-each select="lb">
+                    <del>
+                        <xsl:choose>
+                            <xsl:when test="parent::del/@type">
+                                <xsl:variable name="type" select="generate-id(parent::del/@type)"/>
+                                <xsl:sequence select="parent::del/@*[generate-id() != $type]"/>
+                            </xsl:when>
+                            <xsl:otherwise>
+                                <xsl:sequence select="parent::del/@*"/>
+                            </xsl:otherwise>
+                        </xsl:choose>
+                        <xsl:apply-templates
+                            select="preceding::*[parent::del[generate-id()=$cur-del]]|preceding::text()[parent::del[generate-id()=$cur-del]]"/>
+                        <xsl:apply-templates
+                            select="preceding::*/@*[parent::del[generate-id()=$cur-del]]"/>
+                    </del>
+
+                    <lb>
+                        <xsl:sequence select="@*"/>
+                    </lb>
+
+                    <del>
+                        <xsl:sequence select="parent::del/@*"/>
+                        <xsl:sequence
+                            select="following::*[parent::del[generate-id()=$cur-del]]|following::text()[parent::del[generate-id()=$cur-del]]"/>
+                        <xsl:sequence select="following::*/@*[parent::del[generate-id()=$cur-del]]"/>
+                    </del>
+                </xsl:for-each>
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:sequence select="."/>
+            </xsl:otherwise>
+        </xsl:choose>
+
+    </xsl:template>
+
+    <xsl:template name="one">
+        <xsl:apply-templates select="TEI" mode="step1"/>
+    </xsl:template>
+
+    <xsl:template match="/" mode="step2">
+        <html>
+            <body>
+                <xsl:apply-templates mode="step2"/>
+            </body>
+        </html>
+    </xsl:template>
+
+    <xsl:template match="p" mode="step2">
+        <xsl:variable name="cur-p" select="generate-id(.)"/>
+        <p>
+            <xsl:choose>
+                <xsl:when test="exists(descendant::lb)">
+                    <xsl:for-each select="descendant::lb">
+                        <xsl:variable name="cur-lb" select="generate-id(.)"/>
+                        <span class="line">
+                            <xsl:for-each
+                                select="preceding::node()[ancestor::p[generate-id()=$cur-p]]">
+
+                                <xsl:choose>
+                                    <xsl:when test="not(self::lb)">
+                                        <xsl:if
+                                            test="generate-id(following::lb[1])=$cur-lb and generate-id(parent::node()[1])=$cur-p">
+                                            <xsl:apply-templates select="." mode="step2"/>
+                                        </xsl:if>
+                                    </xsl:when>
+                                    <xsl:otherwise>
+                                        <xsl:apply-templates select="." mode="step2"/>
+                                    </xsl:otherwise>
+                                </xsl:choose>
+                            </xsl:for-each>
+                        </span>
+                        <xsl:if test="not(following::lb[parent::p[generate-id()=$cur-p]])">
+                            <span class="line">
+                                <xsl:for-each
+                                    select="following::*[ancestor::p[generate-id()=$cur-p]]">
+                                    <xsl:apply-templates select="." mode="step2"/>
+                                </xsl:for-each>
+                            </span>
+                        </xsl:if>
+                    </xsl:for-each>
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:apply-templates mode="step2"/>
+                </xsl:otherwise>
+            </xsl:choose>
+        </p>
+    </xsl:template>
+
+    <xsl:template match="del" mode="step2">
+        <del>
+            <xsl:apply-templates mode="step2"/>
+        </del>
+    </xsl:template>
+
+    <!-- OUTPUTTING -->
+
+    <xsl:template match="/">
+        <xsl:sequence select="$step2"/>
+    </xsl:template>
+
+</xsl:stylesheet>
