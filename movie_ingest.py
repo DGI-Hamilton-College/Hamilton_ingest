@@ -1,13 +1,9 @@
 '''
-Created on Sep 19, 2011
+Created on Oct 17, 2011
 This file handles the batch ingest of the civil war collection for hamilton
 @author: William Panting
-
-
-etree.tostring(tree)
-
-
 '''
+
 import logging, sys, os, ConfigParser, time#, shutil
 from fcrepo.connection import Connection, FedoraConnectionException
 from fcrepo.client import FedoraClient
@@ -20,7 +16,7 @@ etree = xmlib.import_etree()
 Helper functions
 '''
 
-def handle_clip_mods(clip_mods_parser):
+def handle_clip_mods(clip_mods_parser, mods_file_path):
     '''
     This function will handle the creation of clip objects
     @param clip_mods_parser
@@ -28,9 +24,30 @@ def handle_clip_mods(clip_mods_parser):
     @return boolean
       True on success, false if something was wrong
     '''
-    print(clip_mods_parser)
+    high_resolution_element_list = clip_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='High Quality Video']")
+    if high_resolution_element_list:
+        high_resolution_mov_path = high_resolution_element_list[0].text
     
-def handle_misc_mods(misc_mods_parser):
+    low_resolution_element_list = clip_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Web Quality Video']")
+    if low_resolution_element_list:
+        low_resolution_mov_path = low_resolution_element_list[0].text
+    
+    clip_pid = fedora.getNextPID(name_space)
+    
+    high_resolution_mov_path = os.path.join(os.path.dirname(mods_file_path), high_resolution_mov_path)
+    low_resolution_mov_path = os.path.join(os.path.dirname(mods_file_path), low_resolution_mov_path)
+    
+    #this section handles the diferent types of clips (subs or not)
+    if not '-sub' in os.path.basename(mods_file_path):
+        global clips_to_pids
+        clips_to_pids[mods_file] = clip_pid
+        print('clip')
+    else:
+        print('clip with subs')
+        
+    return True
+    
+def handle_misc_mods(misc_mods_parser, mods_file):
     '''
     This function will handle the creation of clip objects
     @param misc_mods_parser
@@ -38,9 +55,11 @@ def handle_misc_mods(misc_mods_parser):
     @return boolean
       True on success, false if something was wrong
     '''
-    print(misc_mods_parser)
     
-def handle_still_mods(still_mods_parser):
+    print('misc')
+    return True
+
+def handle_still_mods(still_mods_parser, mods_file):
     '''
     This function will handle the creation of clip objects
     @param still_mods_parser
@@ -48,9 +67,11 @@ def handle_still_mods(still_mods_parser):
     @return boolean
       True on success, false if something was wrong
     '''
-    print(still_mods_parser)
     
-def handle_transcript_mods(transcript_mods_parser):
+    print('still')
+    return True
+
+def handle_transcript_mods(transcript_mods_parser, mods_file):
     '''
     This function will handle the creation of clip objects
     @param transcript_mods_parser
@@ -58,8 +79,10 @@ def handle_transcript_mods(transcript_mods_parser):
     @return boolean
       True on success, false if something was wrong
     '''
-    print(transcript_mods_parser)
     
+    print('transcript')
+    return True
+
     
 def handle_mods_file(mods_file_path):
     '''
@@ -72,7 +95,20 @@ def handle_mods_file(mods_file_path):
       True on success, false if something was wrong
     @author William Panting
     '''
-    print(modsFilePath)
+    mods_tree = etree.parse(mods_file_path)
+    if '-cp' in mods_file_path:
+        if handle_clip_mods(mods_tree, mods_file_path) is False:
+            return False
+    if '-mis' in mods_file_path:
+        if handle_misc_mods(mods_tree, mods_file_path) is False:
+            return False
+    if '-st' in mods_file_path:
+        if handle_still_mods(mods_tree, mods_file_path) is False:
+            return False
+    if '-tr-' in mods_file_path:
+        if handle_transcript_mods(mods_tree, mods_file_path) is False:
+            return False    
+    return True
 
 if __name__ == '__main__':
     if len(sys.argv) == 2:
@@ -86,7 +122,7 @@ if __name__ == '__main__':
     '''
     setup
     '''
-        
+    name_space = u'hamilton1'
         
     #configure logging
     log_directory=os.path.join(source_directory,'logs')
@@ -130,6 +166,14 @@ if __name__ == '__main__':
     mods_files = os.listdir(mods_directory)
     data_files = os.listdir(data_directory)
     
+    #restrict mods_files to .xml
+    mods_files_copy = list(mods_files)
+    for mods_file in mods_files_copy:
+        if not mods_file.endswith('.xml'):
+            mods_files.remove(mods_file)
+    
+    #this mapping is to link pids to clip files to make building relationships easier
+    clips_to_pids = dict({'1':'1', '1':'1'})
     
     '''
     do ingest
@@ -139,8 +183,8 @@ if __name__ == '__main__':
     mods_file = mods_files[0]
     
     movie_name = mods_file[:mods_file.find('-')]
-    movie_pid = fedora.getNextPID(u'hamilton')
-    benshi_pid = fedora.getNextPID(u'hamilton')
+    movie_pid = fedora.getNextPID(name_space)
+    benshi_pid = fedora.getNextPID(name_space)
     
     movie_label=unicode(movie_name)
     movie_object = fedora.createObject(movie_pid, label = movie_label)
@@ -153,16 +197,22 @@ if __name__ == '__main__':
     #loop through the mods folder and ingest the clips because parent pids mst be known
     mods_files_copy = list(mods_files)
     for mods_file in mods_files_copy:
-        #proceed if mods file is for a clip
-        if '-cp' in mods_file:
+        #proceed if mods file is for a clip but not one with subs
+        if '-cp' in mods_file and not '-sub' in mods_file:
+            mods_file_full_path = os.path.join(mods_directory, mods_file)
             #ingest
-            handle_mods_file(mods_file)
+            if handle_mods_file(mods_file_full_path) is False:
+                logging.error('Error handling mods_file: ' + mods_file_full_path + ' \n')
+                sys.exit()
             #remove the file from mods_files list
             mods_files.remove(mods_file)
     print('clips')
     
     #loop through the rest of the files and ingest the data
     for mods_file in mods_files:
-        handle_mods_file(mods_file)
+        mods_file_full_path = os.path.join(mods_directory, mods_file)
+        if handle_mods_file(mods_file_full_path) is False:
+            logging.error('Error handling mods_file: ' + mods_file_full_path + ' \n')
+            sys.exit()
         
 sys.exit()
