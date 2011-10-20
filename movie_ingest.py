@@ -14,6 +14,8 @@ etree = xmlib.import_etree()
 
 '''
 Helper functions
+@todo: add datastreams 
+@todo: check for missing files
 '''
 
 def handle_clip_mods(clip_mods_parser, mods_file_name):
@@ -37,16 +39,28 @@ def handle_clip_mods(clip_mods_parser, mods_file_name):
     high_resolution_mov_path = os.path.normpath(os.path.join(mods_directory, high_resolution_mov_path))
     low_resolution_mov_path = os.path.normpath(os.path.join(mods_directory, low_resolution_mov_path))
     
+    clip_label=unicode(movie_name + '_' + mods_file_name[mods_file_name.find('-')+1:mods_file_name.rfind('.')])
+    clip_object = fedora.createObject(clip_pid, label = clip_label)
+    clip_object_RELS_EXT=fedora_relationships.rels_ext(clip_object,fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#'))
+
     
     #this section handles the diferent types of clips (subs or not)
     if not '-sub' in mods_file_name:
         global clips_to_pids
         clips_to_pids[mods_file_name] = clip_pid
-        print('clip')
+            #add relationships
+        clip_object_RELS_EXT.addRelationship('isClipOf', movie_object)
+        clip_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':benshiClip')
+        clip_object_RELS_EXT.update()
+        return True
     else:
-        print('clip with subs')
-        
-    return True
+        #add relationships
+        master_clip_file_name = mods_file_name.replace('-sub','')
+        clip_object_RELS_EXT.addRelationship('isSubOf', clips_to_pids[master_clip_file_name])
+        clip_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':benshiClipSubbed')
+        clip_object_RELS_EXT.update()
+        return True
+    return False
     
 def handle_misc_mods(misc_mods_parser, mods_file_name):
     '''
@@ -56,14 +70,47 @@ def handle_misc_mods(misc_mods_parser, mods_file_name):
     @return boolean
       True on success, false if something was wrong
     '''
-    '''
-    misc_element_list = misc_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Web Quality Video']")
-    if miscelement_list:
-        misc_path = misc_element_list[0].text
-        misc_path = os.path.normpath(os.path.join(mods_directory, misc_path))
-        print(misc_path)
-    '''
-    print('misc')
+    misc_type_list = misc_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'genre][@type='local']")
+    if misc_type_list:
+        misc_type = misc_type_list[0].text
+        print(misc_type)
+        if misc_type is 'sound recording':#fix up benshi object
+            print('benshi')
+            
+        elif misc_type is 'essay':
+            misc_pid = fedora.getNextPID(name_space)
+            misc_label = unicode(movie_name + '_' + misc_type)
+            misc_object = fedora.createObject(misc_pid, label = misc_label)
+            misc_object_RELS_EXT = fedora_relationships.rels_ext(misc_object,fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#'))
+        
+            misc_object_RELS_EXT.addRelationship('isEssayOf', movie_pid)
+            misc_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':benshiEssay')
+
+        elif misc_type is 'presentation':
+            misc_pid = fedora.getNextPID(name_space)
+            misc_label = unicode(movie_name + '_' + misc_type)
+            misc_object = fedora.createObject(misc_pid, label = misc_label)
+            misc_object_RELS_EXT = fedora_relationships.rels_ext(misc_object,fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#'))
+        
+            misc_object_RELS_EXT.addRelationship('isPresentationOf', movie_pid)
+            misc_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':benshiPresentation')
+
+        elif misc_type is 'Motion Picture':#fix up movie object
+            print('movie')
+            
+        elif misc_type is 'biography':
+            misc_pid = fedora.getNextPID(name_space)
+            misc_label = unicode(movie_name + '_Narrator')
+            misc_object = fedora.createObject(misc_pid, label = misc_label)
+            misc_object_RELS_EXT = fedora_relationships.rels_ext(misc_object,fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#'))
+        
+            misc_object_RELS_EXT.addRelationship('isNarratorOf', benshi_pid)
+            misc_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':benshiNarrator')
+
+        else:
+            return False
+        
+        misc_object_RELS_EXT.update()
     return True
 
 def handle_still_mods(still_mods_parser, mods_file_name):
@@ -79,8 +126,25 @@ def handle_still_mods(still_mods_parser, mods_file_name):
     if still_element_list:
         still_path = still_element_list[0].text
         still_path = os.path.normpath(os.path.join(mods_directory, still_path))
-        print(still_path)
-        print('still')
+        still_pid = fedora.getNextPID(name_space)
+        
+        still_label = unicode(movie_name + '_' + mods_file_name[mods_file_name.find('-')+1:mods_file_name.rfind('.')])
+        still_object = fedora.createObject(still_pid, label = still_label)
+        still_object_RELS_EXT = fedora_relationships.rels_ext(still_object,fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#'))
+        
+        
+        
+        #add relationships
+        still_clip_element_list = still_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Video clip']")
+        if still_clip_element_list:
+            still_clip_file_name = still_clip_element_list[0].text
+            still_object_RELS_EXT.addRelationship('isStillOf', clips_to_pids[still_clip_file_name])
+        else:
+            still_object_RELS_EXT.addRelationship('isStillOf', movie_pid)
+        
+        still_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':benshiStill')
+        still_object_RELS_EXT.update()
+        
         return True
     return False
 
@@ -97,8 +161,30 @@ def handle_transcript_mods(transcript_mods_parser, mods_file_name):
     if transcript_element_list:
         transcript_path = transcript_element_list[0].text
         transcript_path = os.path.normpath(os.path.join(mods_directory, transcript_path))
-        print(transcript_path)
-        print('transcript')
+        
+        
+        transcript_pid = fedora.getNextPID()
+        transcript_label = unicode(movie_name + '_' + mods_file_name[mods_file_name.find('-tr-') + 4:mods_file_name.rfind('.')])
+        transcript_object = fedora.createObject(transcript_pid, label = transcript_label)
+        transcript_object_RELS_EXT = fedora_relationships.rels_ext(transcript_object,fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#'))
+        
+        transcript_clip_element_list = still_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Video clip']")
+        if transcript_clip_element_list:
+            transcript_clip_file_name = transcript_clip_element_list[0].text
+            transcript_object_RELS_EXT.addRelationship('isTranscriptOf', clips_to_pids[transcript_clip_file_name])
+        
+        #handle the 3 different transcript types
+        if '-jpneng' in mods_file_name:
+            transcript_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':EnglishJapaneseTranscript')
+        elif '-jpn' in mods_file_name:
+            transcript_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':JapaneseTranscript')
+        elif '-eng' in mods_file_name:
+            transcript_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':EnglishTranscript')
+        else:
+            return False
+        
+        transcript_object_RELS_EXT.update()
+        
         return True
     return False
 
@@ -143,7 +229,7 @@ if __name__ == '__main__':
     '''
     setup
     '''
-    name_space = u'hamilton1'
+    name_space = u'hamilton2'
         
     #configure logging
     log_directory=os.path.join(source_directory,'logs')
@@ -154,7 +240,7 @@ if __name__ == '__main__':
 
     #get config
     config = ConfigParser.ConfigParser()
-    #config.read(os.path.join(source_directory,'TESTcfg'))
+    #config.read(os.path.join(source_directory,'HAMILTON.cfg'))
     config.read(os.path.join(source_directory,'TEST.cfg'))
     solrUrl=config.get('Solr','url')
     fedoraUrl=config.get('Fedora','url')
@@ -211,9 +297,11 @@ if __name__ == '__main__':
     except FedoraConnectionException, object_fetch_exception:
         if object_fetch_exception.httpcode in [404]:
             logging.info(name_space + ':JapaneseSilentFilmCollection missing, creating object.\n')
-            '''
             collection_object = fedora.createObject(collection_pid, label = collection_label)
-            '''
+            #add relationships
+            collection_object_RELS_EXT=fedora_relationships.rels_ext(collection_object,fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#'))
+            collection_object_RELS_EXT.addRelationship('isMemberOf','islandora:top')
+            collection_object_RELS_EXT.update()
     #put in the benshi Islandora:BenshiMovie content model
     try:
         model_pid = u'islandora:BenshiMovie'
@@ -221,9 +309,12 @@ if __name__ == '__main__':
     except FedoraConnectionException, object_fetch_exception:
         if object_fetch_exception.httpcode in [404]:
             logging.info('islandora:BenshiMovie missing, creating object.\n')
-            '''
             model_object = fedora.createObject(model_pid, label = u'BenshiMovieCModel')
-            '''
+            #add relationships
+            model_object_RELS_EXT=fedora_relationships.rels_ext(model_object,fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#'))
+            model_object_RELS_EXT.addRelationship('isMemberOf','islandora:top')
+            model_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'),'islandora:collectionCModel')
+            model_object_RELS_EXT.update()
     
     
     movie_name = mods_file_name[:mods_file_name.find('-')]
@@ -232,9 +323,19 @@ if __name__ == '__main__':
     
     movie_label=unicode(movie_name)
     movie_object = fedora.createObject(movie_pid, label = movie_label)
+    #add relationships
+    movie_object_RELS_EXT=fedora_relationships.rels_ext(movie_object,fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#'))
+    movie_object_RELS_EXT.addRelationship('isMemberOf',collection_pid)
+    movie_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), model_pid)
+    movie_object_RELS_EXT.update()
     
     benshi_label=unicode(movie_name + ' Benshi')
     benshi_object = fedora.createObject(benshi_pid, label = benshi_label)
+    #add relationships
+    benshi_object_RELS_EXT=fedora_relationships.rels_ext(benshi_object,fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#'))
+    benshi_object_RELS_EXT.addRelationship('isBenshiOf',movie_object)
+    benshi_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':benshiRecording')
+    benshi_object_RELS_EXT.update()
     
     print('starter objects ingested')
     
