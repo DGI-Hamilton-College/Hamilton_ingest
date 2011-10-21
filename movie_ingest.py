@@ -12,10 +12,44 @@ from lxml import etree
 
 '''
 Helper functions
-@todo: add datastreams 
-@todo: check for missing files
+@todo: add datastreams
 '''
 
+def add_MODS_datastream(fedora_object, mods_file_path):
+    '''
+    This is a helper function for adding a mods datastream to an object... this was hapening for every object
+    @param fedora_object
+      fcrepo object to add the mods to
+    @param mods_file_path
+      the path to the mods file to upload as a datastream to fedora_objet
+    '''
+    mods_file_handle = open(mods_file_path)
+    mods_contents = mods_file_handle.read()
+    mods_file_handle.close()
+    fedora_object_pid = fedora_object.pid
+    try:
+        fedora_object.addDataStream(u'MODS', unicode(mods_contents), label=u'MODS',
+        mimeType = u'text/xml', controlGroup = u'X',
+        logMessage = u'Added basic mods meta data.')
+        logging.info('Added MODS datastream to:' + fedora_object_pid)
+    except FedoraConnectionException:
+        logging.error('Error in adding MODS datastream to:' + fedora_object_pid + '\n')
+                
+def get_file_path_from_xpath(lxml_parser, xpath_string):
+    '''
+    This function will return a file path from the mods metadata
+    @param lxml_parser
+      The lxml parser to run the xpath on
+    @param xpath_string
+      the xpath to the string with the mods metadata
+    '''
+    path_list = lxml_parser.xpath(xpath_string)
+    if path_list:
+        if 'currently unavailable' not in path_list[0].text:
+            path = path_list[0].text
+            return os.path.normpath(os.path.join(mods_directory, path))
+    return False
+                
 def handle_clip_mods(clip_mods_parser, mods_file_name):
     '''
     This function will handle the creation of clip objects
@@ -23,31 +57,56 @@ def handle_clip_mods(clip_mods_parser, mods_file_name):
       The etree xml parser to get ingest data from 
     @return boolean
       True on success, false if something was wrong
-    '''
-    high_resolution_element_list = clip_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='High Quality Video']")
-    if high_resolution_element_list:
-        high_resolution_mov_path = high_resolution_element_list[0].text
-    
-    low_resolution_element_list = clip_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Web Quality Video']")
-    if low_resolution_element_list:
-        low_resolution_mov_path = low_resolution_element_list[0].text
-    
+    '''    
     clip_pid = fedora.getNextPID(name_space)
     
-    high_resolution_mov_path = os.path.normpath(os.path.join(mods_directory, high_resolution_mov_path))
-    low_resolution_mov_path = os.path.normpath(os.path.join(mods_directory, low_resolution_mov_path))
+    high_resolution_mov_path = get_file_path_from_xpath(clip_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='High Quality Video']")
+    low_resolution_mov_path = get_file_path_from_xpath(clip_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Web Quality Video']")
+    
+
+    clip_number =  mods_file_name[mods_file_name.find('-cp') + 3:mods_file_name.rfind('.')]
+    clip_number = mods_file_name.replace('-sub','')
     
     clip_label=unicode(movie_name + '_' + mods_file_name[mods_file_name.find('-')+1:mods_file_name.rfind('.')])
     clip_object = fedora.createObject(clip_pid, label = clip_label)
-    clip_object_RELS_EXT=fedora_relationships.rels_ext(clip_object,[hamilton_rdf_name_space, fedora_model_namespace])
-
+    #datastreams
+    add_MODS_datastream(clip_object, mods_file_path)
+    
+    hires_file_handle = open(high_resolution_mov_path, 'rb')
+    try:
+        clip_object.addDataStream(u'HIGHRES', u'aTmpStr', label = u'HIGHRES',
+        mimeType = u'video/quicktime', controlGroup = u'M',
+        logMessage = u'Added HIGHRES datastream.')
+        datastream = clip_object['HIGHRES']
+        datastream.setContent(hires_file_handle)
+        logging.info('Added HIGHRES datastream to:' + clip_pid)
+    except FedoraConnectionException:
+        logging.error('Error in adding HIGHRES datastream to:' + clip_pid + '\n')
+    hires_file_handle.close()
+    
+    lowres_file_handle = open(low_resolution_mov_path, 'rb')
+    try:
+        clip_object.addDataStream(u'LOWRES', u'aTmpStr', label=u'LOWRES',
+        mimeType = u'video/quicktime', controlGroup = u'M',
+        logMessage = u'Added LOWRES datastream.')
+        datastream = clip_object['LOWRES']
+        datastream.setContent(lowres_file_handle)
+        logging.info('Added LOWRES datastream to:' + clip_pid)
+    except FedoraConnectionException:
+        logging.error('Error in adding LOWRES datastream to:' + clip_pid + '\n')
+    lowres_file_handle.close()
+    
+    #relationships
+    clip_object_RELS_EXT = fedora_relationships.rels_ext(clip_object,[hamilton_rdf_name_space, fedora_model_namespace])
+    clip_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isClipOf'), movie_object)
+    clip_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isClipNumber'), fedora_relationships.rels_object(str(clip_number), fedora_relationships.rels_object.LITERAL))
+    
     global clips_to_pids
     clips_to_pids[mods_file_name] = clip_pid
     
     #this section handles the diferent types of clips (subs or not)
     if not '-sub' in mods_file_name:
             #add relationships
-        clip_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isClipOf'), movie_object)
         clip_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':benshiClip')
         clip_object_RELS_EXT.update()
         return True
@@ -74,13 +133,18 @@ def handle_misc_mods(misc_mods_parser, mods_file_name):
         print(misc_type)
         if misc_type == 'sound recording':#fix up benshi object
             print('benshi')
-            
+            #datastreams
+            add_MODS_datastream(benshi_object, mods_file_path)
+            audio_file_path = get_file_path_from_xpath(misc_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Audio']")
+            print(audio_file_path)
         elif misc_type == 'essay':
             misc_pid = fedora.getNextPID(name_space)
             misc_label = unicode(movie_name + '_' + misc_type)
             misc_object = fedora.createObject(misc_pid, label = misc_label)
             misc_object_RELS_EXT = fedora_relationships.rels_ext(misc_object,[hamilton_rdf_name_space, fedora_model_namespace])
-        
+            #datastreams
+            add_MODS_datastream(misc_object, mods_file_path)
+            #relationships
             misc_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isEssayOf'), movie_pid)
             misc_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':benshiEssay')
             misc_object_RELS_EXT.update()
@@ -90,20 +154,25 @@ def handle_misc_mods(misc_mods_parser, mods_file_name):
             misc_label = unicode(movie_name + '_' + misc_type)
             misc_object = fedora.createObject(misc_pid, label = misc_label)
             misc_object_RELS_EXT = fedora_relationships.rels_ext(misc_object,[hamilton_rdf_name_space, fedora_model_namespace])
-        
+            #datastreams
+            add_MODS_datastream(misc_object, mods_file_path)
+            #relationships
             misc_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isPresentationOf'), movie_pid)
             misc_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':benshiPresentation')
             misc_object_RELS_EXT.update()
             
         elif misc_type == 'Motion Picture':#fix up movie object
             print('movie')
-            
+            #datastreams
+            add_MODS_datastream(movie_object, mods_file_path)
         elif misc_type == 'biography':
             misc_pid = fedora.getNextPID(name_space)
             misc_label = unicode(movie_name + '_Narrator')
             misc_object = fedora.createObject(misc_pid, label = misc_label)
             misc_object_RELS_EXT = fedora_relationships.rels_ext(misc_object,[hamilton_rdf_name_space, fedora_model_namespace])
-        
+            #datastreams
+            add_MODS_datastream(misc_object, mods_file_path)
+            #relationships
             misc_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isNarratorOf'), benshi_pid)
             misc_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':benshiNarrator')
             misc_object_RELS_EXT.update()
@@ -121,20 +190,19 @@ def handle_still_mods(still_mods_parser, mods_file_name):
     @return boolean
       True on success, false if something was wrong
     '''
-    
-    still_element_list = still_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Still Image']")
-    if still_element_list:
-        still_path = still_element_list[0].text
-        still_path = os.path.normpath(os.path.join(mods_directory, still_path))
+    still_path = get_file_path_from_xpath(still_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Still Image']")
+    if still_path:
+        
         still_pid = fedora.getNextPID(name_space)
         
         still_label = unicode(movie_name + '_' + mods_file_name[mods_file_name.find('-')+1:mods_file_name.rfind('.')])
         still_object = fedora.createObject(still_pid, label = still_label)
         still_object_RELS_EXT = fedora_relationships.rels_ext(still_object,[hamilton_rdf_name_space, fedora_model_namespace])
         
+        #datastreams
+        add_MODS_datastream(still_object, mods_file_path)
+        #relationships
         
-        
-        #add relationships
         still_clip_element_list = still_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Video clip']")
         if still_clip_element_list:
             still_clip_file_name = still_clip_element_list[0].text
@@ -161,12 +229,12 @@ def handle_transcript_mods(transcript_mods_parser, mods_file_name):
     transcript_label = unicode(movie_name + '_' + mods_file_name[mods_file_name.find('-tr-') + 4:mods_file_name.rfind('.')])
     transcript_object = fedora.createObject(transcript_pid, label = transcript_label)
     transcript_object_RELS_EXT = fedora_relationships.rels_ext(transcript_object,[hamilton_rdf_name_space, fedora_model_namespace])
-        
-    transcript_element_list = transcript_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Document']")
-    if transcript_element_list:
-        transcript_path = transcript_element_list[0].text
-        transcript_path = os.path.normpath(os.path.join(mods_directory, transcript_path))
-        
+    #datastreams
+    add_MODS_datastream(transcript_object, mods_file_path)
+    
+    #relationships
+    transcript_path = get_file_path_from_xpath(transcript_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Document']")
+    if transcript_path:        
         #handle is transcript of
         transcript_clip_element_list = transcript_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Video clip']")
         if transcript_clip_element_list:
@@ -231,7 +299,7 @@ if __name__ == '__main__':
     '''
     setup
     '''
-    name_space = u'hamilton4'
+    name_space = u'hamilton6'
         
     hamilton_rdf_name_space = fedora_relationships.rels_namespace('hamilton', 'http://hamilton.org/ontology#')
     fedora_model_namespace = fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#')
@@ -309,7 +377,7 @@ if __name__ == '__main__':
             collection_object_RELS_EXT.update()
     #put in the benshi Islandora:BenshiMovie content model
     try:
-        model_pid = u'islandora:BenshiMovie'
+        model_pid = u'islandora:benshiMovie'
         fedora.getObject(model_pid)
     except FedoraConnectionException, object_fetch_exception:
         if object_fetch_exception.httpcode in [404]:
@@ -344,7 +412,7 @@ if __name__ == '__main__':
     
     print('starter objects ingested')
     
-    #loop through the mods folder and ingest the clips because parent pids mst be known
+    #loop through the mods folder and ingest the clips because parent pids must be known
     mods_file_names_copy = list(mods_file_names)
     for mods_file_name in mods_file_names_copy:
         #proceed if mods file is for a clip but not one with subs
