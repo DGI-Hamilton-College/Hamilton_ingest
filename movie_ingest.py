@@ -341,7 +341,7 @@ def handle_transcript_mods(transcript_mods_parser, mods_file_name):
     transcript_object = fedora.createObject(transcript_pid, label = transcript_label)
     transcript_object_RELS_EXT = fedora_relationships.rels_ext(transcript_object,[hamilton_rdf_name_space, fedora_model_namespace])
     transcript_path = get_file_path_from_xpath(transcript_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Document']")
-    time_synced_transcript_path = transcript_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Document with time-sync encoding']")
+    time_synced_transcript_path = get_file_path_from_xpath(transcript_mods_parser,"//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Document with time-sync encoding']")
     
     
     #datastreams
