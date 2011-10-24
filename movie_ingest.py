@@ -4,7 +4,7 @@ This file handles the batch ingest of the civil war collection for hamilton
 @author: William Panting
 '''
 
-import logging, sys, os, ConfigParser, time#, shutil
+import logging, sys, os, ConfigParser, time
 from fcrepo.connection import Connection, FedoraConnectionException
 from fcrepo.client import FedoraClient
 from islandoraUtils.metadata import fedora_relationships
@@ -12,7 +12,6 @@ from lxml import etree
 
 '''
 Helper functions
-@todo: add datastreams
 '''
 
 def add_MODS_datastream(fedora_object, mods_file_path):
@@ -71,34 +70,35 @@ def handle_clip_mods(clip_mods_parser, mods_file_name):
     clip_object = fedora.createObject(clip_pid, label = clip_label)
     #datastreams
     add_MODS_datastream(clip_object, mods_file_path)
+    if high_resolution_mov_path:
+        hires_file_handle = open(high_resolution_mov_path, 'rb')
+        try:
+            clip_object.addDataStream(u'HIGHRES', u'aTmpStr', label = u'HIGHRES',
+            mimeType = u'video/quicktime', controlGroup = u'M',
+            logMessage = u'Added HIGHRES datastream.')
+            datastream = clip_object['HIGHRES']
+            datastream.setContent(hires_file_handle)
+            logging.info('Added HIGHRES datastream to:' + clip_pid)
+        except FedoraConnectionException:
+            logging.error('Error in adding HIGHRES datastream to:' + clip_pid + '\n')
+        hires_file_handle.close()
     
-    hires_file_handle = open(high_resolution_mov_path, 'rb')
-    try:
-        clip_object.addDataStream(u'HIGHRES', u'aTmpStr', label = u'HIGHRES',
-        mimeType = u'video/quicktime', controlGroup = u'M',
-        logMessage = u'Added HIGHRES datastream.')
-        datastream = clip_object['HIGHRES']
-        datastream.setContent(hires_file_handle)
-        logging.info('Added HIGHRES datastream to:' + clip_pid)
-    except FedoraConnectionException:
-        logging.error('Error in adding HIGHRES datastream to:' + clip_pid + '\n')
-    hires_file_handle.close()
-    
-    lowres_file_handle = open(low_resolution_mov_path, 'rb')
-    try:
-        clip_object.addDataStream(u'LOWRES', u'aTmpStr', label=u'LOWRES',
-        mimeType = u'video/quicktime', controlGroup = u'M',
-        logMessage = u'Added LOWRES datastream.')
-        datastream = clip_object['LOWRES']
-        datastream.setContent(lowres_file_handle)
-        logging.info('Added LOWRES datastream to:' + clip_pid)
-    except FedoraConnectionException:
-        logging.error('Error in adding LOWRES datastream to:' + clip_pid + '\n')
-    lowres_file_handle.close()
+    if low_resolution_mov_path:
+        lowres_file_handle = open(low_resolution_mov_path, 'rb')
+        try:
+            clip_object.addDataStream(u'LOWRES', u'aTmpStr', label=u'LOWRES',
+            mimeType = u'video/quicktime', controlGroup = u'M',
+            logMessage = u'Added LOWRES datastream.')
+            datastream = clip_object['LOWRES']
+            datastream.setContent(lowres_file_handle)
+            logging.info('Added LOWRES datastream to:' + clip_pid)
+        except FedoraConnectionException:
+            logging.error('Error in adding LOWRES datastream to:' + clip_pid + '\n')
+        lowres_file_handle.close()
     
     #relationships
     clip_object_RELS_EXT = fedora_relationships.rels_ext(clip_object,[hamilton_rdf_name_space, fedora_model_namespace])
-    clip_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isClipOf'), movie_object)
+    clip_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isClipOf'), movie_pid)
     clip_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isClipNumber'), fedora_relationships.rels_object(str(clip_number), fedora_relationships.rels_object.LITERAL))
     
     global clips_to_pids
@@ -106,7 +106,7 @@ def handle_clip_mods(clip_mods_parser, mods_file_name):
     
     #this section handles the diferent types of clips (subs or not)
     if not '-sub' in mods_file_name:
-            #add relationships
+        #add relationships
         clip_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':benshiClip')
         clip_object_RELS_EXT.update()
         return True
@@ -136,14 +136,44 @@ def handle_misc_mods(misc_mods_parser, mods_file_name):
             #datastreams
             add_MODS_datastream(benshi_object, mods_file_path)
             audio_file_path = get_file_path_from_xpath(misc_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Audio']")
-            print(audio_file_path)
+            
+            if audio_file_path:
+                audio_file_handle = open(audio_file_path, 'rb')
+                try:
+                    benshi_object.addDataStream(u'MP3', u'aTmpStr', label=u'MP3',
+                    mimeType = u'audio/mpeg', controlGroup = u'M',
+                    logMessage = u'Added MP3 datastream.')
+                    datastream = benshi_object['MP3']
+                    datastream.setContent(audio_file_handle)
+                    logging.info('Added MP3 datastream to:' + benshi_pid)
+                except FedoraConnectionException:
+                    logging.error('Error in adding MP3 datastream to:' + benshi_pid + '\n')
+                audio_file_handle.close()
+                print(audio_file_path)
+            
         elif misc_type == 'essay':
+            print('essay')
             misc_pid = fedora.getNextPID(name_space)
             misc_label = unicode(movie_name + '_' + misc_type)
             misc_object = fedora.createObject(misc_pid, label = misc_label)
             misc_object_RELS_EXT = fedora_relationships.rels_ext(misc_object,[hamilton_rdf_name_space, fedora_model_namespace])
             #datastreams
             add_MODS_datastream(misc_object, mods_file_path)
+            
+            essay_file_path = get_file_path_from_xpath(misc_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Article']")
+            if essay_file_path:
+                essay_file_handle = open(essay_file_path, 'rb')
+                try:
+                    misc_object.addDataStream(u'DOCX', u'aTmpStr', label=u'DOCX',
+                    mimeType = u'application/vnd.openxmlformats-officedocument.wordprocessingml.document', controlGroup = u'M',
+                    logMessage = u'Added DOCX datastream.')
+                    datastream = misc_object['DOCX']
+                    datastream.setContent(essay_file_handle)
+                    logging.info('Added DOCX datastream to:' + misc_pid)
+                except FedoraConnectionException:
+                    logging.error('Error in adding DOCX datastream to:' + misc_pid + '\n')
+                essay_file_handle.close()
+            
             #relationships
             misc_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isEssayOf'), movie_pid)
             misc_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':benshiEssay')
@@ -156,22 +186,93 @@ def handle_misc_mods(misc_mods_parser, mods_file_name):
             misc_object_RELS_EXT = fedora_relationships.rels_ext(misc_object,[hamilton_rdf_name_space, fedora_model_namespace])
             #datastreams
             add_MODS_datastream(misc_object, mods_file_path)
+            
+            presentation_file_path = get_file_path_from_xpath(misc_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Presentation]")
+            if presentation_file_path:
+                presentation_file_handle = open(presentation_file_path, 'rb')
+                try:
+                    misc_object.addDataStream(u'PPTX', u'aTmpStr', label=u'PPTX',
+                    mimeType = u'application/vnd.openxmlformats-officedocument.presentationml.presentation', controlGroup = u'M',
+                    logMessage = u'Added PPTX datastream.')
+                    datastream = misc_object['PPTX']
+                    datastream.setContent(presentation_file_handle)
+                    logging.info('Added PPTX datastream to:' + misc_pid)
+                except FedoraConnectionException:
+                    logging.error('Error in adding PPTX datastream to:' + misc_pid + '\n')
+                presentation_file_handle.close()
+            
             #relationships
             misc_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isPresentationOf'), movie_pid)
             misc_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':benshiPresentation')
             misc_object_RELS_EXT.update()
             
+        #movie gets the opac redirect it's special
         elif misc_type == 'Motion Picture':#fix up movie object
             print('movie')
             #datastreams
             add_MODS_datastream(movie_object, mods_file_path)
+            
+            opac_path = get_file_path_from_xpath(misc_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url']")
+            if opac_path:
+                try:
+                    movie_object.addDataStream(u'OPAC', u'aTmpStr', label = u'OPAC',
+                    mimeType = u'text/html', controlGroup = u'R',
+                    location = unicode(opac_path),
+                    logMessage = u'Added OPAC datastream.')
+                    logging.info('Added OPAC datastream to:' + movie_pid)
+                except FedoraConnectionException:
+                    logging.error('Error in adding OPAC datastream to:' + movie_pid + '\n')
+            
+            #biography is special it has a docx and a pdf
+            #can't use 'get_file_path_from_xpath' these are different then the rest, can change it or handle things here (handle things here, dev_speed)
         elif misc_type == 'biography':
             misc_pid = fedora.getNextPID(name_space)
             misc_label = unicode(movie_name + '_Narrator')
             misc_object = fedora.createObject(misc_pid, label = misc_label)
             misc_object_RELS_EXT = fedora_relationships.rels_ext(misc_object,[hamilton_rdf_name_space, fedora_model_namespace])
+            
+            #get the paths for the pdf/docx
+            docx_file_path = False
+            pdf_file_path = False
+            path_list = misc_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Article']")
+            if path_list:
+                for path_element in path_list:
+                    if 'currently unavailable' not in path_element:
+                        if '.docx' in path_element.text:
+                            docx_file_path = path_element.text
+                        elif 'pdf' in path_element.text:
+                            pdf_file_path = path_element.text
+            
+            
             #datastreams
-            add_MODS_datastream(misc_object, mods_file_path)
+            add_MODS_datastream(misc_object, mods_file_path) 
+            
+            if docx_file_path:
+                docx_file_handle = open(docx_file_path, 'rb')
+                try:
+                    misc_object.addDataStream(u'DOCX', u'aTmpStr', label = u'DOCX',
+                    mimeType = u'application/vnd.openxmlformats-officedocument.wordprocessingml.document', controlGroup = u'M',
+                    logMessage = u'Added DOCX datastream.')
+                    datastream = misc_object['DOCX']
+                    datastream.setContent(docx_file_handle)
+                    logging.info('Added DOCX datastream to:' + misc_pid)
+                except FedoraConnectionException:
+                    logging.error('Error in adding DOCX datastream to:' + misc_pid + '\n')
+                docx_file_handle.close()
+            
+            if pdf_file_path:
+                pdf_file_handle = open(pdf_file_path, 'rb')
+                try:
+                    misc_object.addDataStream(u'PDF', u'aTmpStr', label = u'PDF',
+                    mimeType = u'application/pdf', controlGroup = u'M',
+                    logMessage = u'Added PDF datastream.')
+                    datastream = misc_object['PDF']
+                    datastream.setContent(pdf_file_handle)
+                    logging.info('Added PDF datastream to:' + misc_pid)
+                except FedoraConnectionException:
+                    logging.error('Error in adding PDF datastream to:' + misc_pid + '\n')
+                pdf_file_handle.close()
+            
             #relationships
             misc_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isNarratorOf'), benshi_pid)
             misc_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':benshiNarrator')
@@ -191,18 +292,28 @@ def handle_still_mods(still_mods_parser, mods_file_name):
       True on success, false if something was wrong
     '''
     still_path = get_file_path_from_xpath(still_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Still Image']")
-    if still_path:
-        
-        still_pid = fedora.getNextPID(name_space)
-        
-        still_label = unicode(movie_name + '_' + mods_file_name[mods_file_name.find('-')+1:mods_file_name.rfind('.')])
-        still_object = fedora.createObject(still_pid, label = still_label)
-        still_object_RELS_EXT = fedora_relationships.rels_ext(still_object,[hamilton_rdf_name_space, fedora_model_namespace])
+    
+    still_pid = fedora.getNextPID(name_space)
+    still_label = unicode(movie_name + '_' + mods_file_name[mods_file_name.find('-')+1:mods_file_name.rfind('.')])
+    still_object = fedora.createObject(still_pid, label = still_label)
+    still_object_RELS_EXT = fedora_relationships.rels_ext(still_object,[hamilton_rdf_name_space, fedora_model_namespace])
         
         #datastreams
-        add_MODS_datastream(still_object, mods_file_path)
-        #relationships
+    add_MODS_datastream(still_object, mods_file_path)
+    if still_path:
+        png_file_handle = open(still_path, 'rb')
+        try:
+            still_object.addDataStream(u'PNG', u'aTmpStr', label=u'PNG',
+            mimeType = u'image/png', controlGroup = u'M',
+            logMessage = u'Added PNG datastream.')
+            datastream = still_object['PNG']
+            datastream.setContent(png_file_handle)
+            logging.info('Added PNG datastream to:' + still_pid)
+        except FedoraConnectionException:
+            logging.error('Error in adding PNG datastream to:' + still_pid + '\n')
+        png_file_handle.close()
         
+        #relationships
         still_clip_element_list = still_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Video clip']")
         if still_clip_element_list:
             still_clip_file_name = still_clip_element_list[0].text
@@ -229,19 +340,51 @@ def handle_transcript_mods(transcript_mods_parser, mods_file_name):
     transcript_label = unicode(movie_name + '_' + mods_file_name[mods_file_name.find('-tr-') + 4:mods_file_name.rfind('.')])
     transcript_object = fedora.createObject(transcript_pid, label = transcript_label)
     transcript_object_RELS_EXT = fedora_relationships.rels_ext(transcript_object,[hamilton_rdf_name_space, fedora_model_namespace])
+    transcript_path = get_file_path_from_xpath(transcript_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Document']")
+    time_synced_transcript_path = transcript_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Document with time-sync encoding']")
+    #todo: time synced stuff if there is some
+    
+    
+    
     #datastreams
     add_MODS_datastream(transcript_object, mods_file_path)
+        
+    if time_synced_transcript_path:
+        print(time_synced_transcript_path)
+        time_synced_transcript_handle = open(time_synced_transcript_path, 'rb')
+        try:
+            transcript_object.addDataStream(u'TimeSyncedTranscript', u'aTmpStr', label=u'POPCORN',
+            mimeType = u'application/xml', controlGroup = u'M',
+            logMessage = u'Added TimeSyncedTranscript datastream.')
+            datastream = transcript_object['TimeSyncedTranscript']
+            datastream.setContent(time_synced_transcript_handle)
+            logging.info('Added TimeSyncedTranscript datastream to:' + transcript_pid)
+        except FedoraConnectionException:
+            logging.error('Error in adding TimeSyncedTranscript datastream to:' + transcript_pid + '\n')
+        time_synced_transcript_handle.close()
+        
+    if transcript_path:
+        add_MODS_datastream(transcript_object, mods_file_path)
+        pdf_file_handle = open(transcript_path, 'rb')
+        try:
+            transcript_object.addDataStream(u'PDF', u'aTmpStr', label=u'PDF',
+            mimeType = u'application/pdf', controlGroup = u'M',
+            logMessage = u'Added PDF datastream.')
+            datastream = transcript_object['PDF']
+            datastream.setContent(pdf_file_handle)
+            logging.info('Added PDF datastream to:' + transcript_pid)
+        except FedoraConnectionException:
+            logging.error('Error in adding PDF datastream to:' + transcript_pid + '\n')
+        pdf_file_handle.close()
     
     #relationships
-    transcript_path = get_file_path_from_xpath(transcript_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Document']")
-    if transcript_path:        
         #handle is transcript of
         transcript_clip_element_list = transcript_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Video clip']")
         if transcript_clip_element_list:
             transcript_clip_file_name = transcript_clip_element_list[0].text
             transcript_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isTranscriptOf'), clips_to_pids[transcript_clip_file_name])
         else:
-            transcript_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isTranscriptOf'), movie_name)
+            transcript_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isTranscriptOf'), movie_pid)
             
         #handle the 3 different transcript types
         if '-jpneng' in mods_file_name:
@@ -327,7 +470,7 @@ if __name__ == '__main__':
     try:
         fedora=FedoraClient(connection)
     except FedoraConnectionException:
-        logging.error('Error connecting to fedora, exiting'+'\n')
+        logging.error('Error connecting to fedora, exiting \n')
         sys.exit()
     
     
@@ -398,7 +541,7 @@ if __name__ == '__main__':
     movie_object = fedora.createObject(movie_pid, label = movie_label)
     #add relationships
     movie_object_RELS_EXT=fedora_relationships.rels_ext(movie_object,fedora_model_namespace)
-    movie_object_RELS_EXT.addRelationship('isMemberOf',collection_pid)
+    movie_object_RELS_EXT.addRelationship('isMemberOf', collection_pid)
     movie_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), model_pid)
     movie_object_RELS_EXT.update()
     
@@ -406,7 +549,7 @@ if __name__ == '__main__':
     benshi_object = fedora.createObject(benshi_pid, label = benshi_label)
     #add relationships
     benshi_object_RELS_EXT=fedora_relationships.rels_ext(benshi_object,[hamilton_rdf_name_space, fedora_model_namespace])
-    benshi_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton', 'isBenshiOf'), movie_object)
+    benshi_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton', 'isBenshiOf'), movie_pid)
     benshi_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':benshiRecording')
     benshi_object_RELS_EXT.update()
     
