@@ -132,7 +132,6 @@ def handle_misc_mods(misc_mods_parser, mods_file_name):
         misc_type = misc_type_list[0].text
         print(misc_type)
         if misc_type == 'sound recording':#fix up benshi object
-            print('benshi')
             #datastreams
             add_MODS_datastream(benshi_object, mods_file_path)
             audio_file_path = get_file_path_from_xpath(misc_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Audio']")
@@ -152,7 +151,6 @@ def handle_misc_mods(misc_mods_parser, mods_file_name):
                 print(audio_file_path)
             
         elif misc_type == 'essay':
-            print('essay')
             misc_pid = fedora.getNextPID(name_space)
             misc_label = unicode(movie_name + '_' + misc_type)
             misc_object = fedora.createObject(misc_pid, label = misc_label)
@@ -208,7 +206,6 @@ def handle_misc_mods(misc_mods_parser, mods_file_name):
             
         #movie gets the opac redirect it's special
         elif misc_type == 'Motion Picture':#fix up movie object
-            print('movie')
             #datastreams
             add_MODS_datastream(movie_object, mods_file_path)
             
@@ -362,7 +359,6 @@ def handle_transcript_mods(transcript_mods_parser, mods_file_name):
         time_synced_transcript_handle.close()
         
     if transcript_path:
-        add_MODS_datastream(transcript_object, mods_file_path)
         pdf_file_handle = open(transcript_path, 'rb')
         try:
             transcript_object.addDataStream(u'PDF', u'aTmpStr', label=u'PDF',
@@ -440,7 +436,7 @@ if __name__ == '__main__':
     '''
     setup
     '''
-    name_space = u'hamilton6'
+    name_space = u'hamilton7'
         
     hamilton_rdf_name_space = fedora_relationships.rels_namespace('hamilton', 'http://hamilton.org/ontology#')
     fedora_model_namespace = fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#')
