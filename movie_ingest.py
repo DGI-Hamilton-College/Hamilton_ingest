@@ -340,7 +340,6 @@ def handle_transcript_mods(transcript_mods_parser, mods_file_name):
     transcript_path = get_file_path_from_xpath(transcript_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Document']")
     time_synced_transcript_path = get_file_path_from_xpath(transcript_mods_parser,"//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Document with time-sync encoding']")
     
-    
     #datastreams
     add_MODS_datastream(transcript_object, mods_file_path)
         
@@ -372,28 +371,27 @@ def handle_transcript_mods(transcript_mods_parser, mods_file_name):
         pdf_file_handle.close()
     
     #relationships
-        #handle is transcript of
-        transcript_clip_element_list = transcript_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Video clip']")
-        if transcript_clip_element_list:
-            transcript_clip_file_name = transcript_clip_element_list[0].text
-            transcript_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isTranscriptOf'), clips_to_pids[transcript_clip_file_name])
-        else:
-            transcript_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isTranscriptOf'), movie_pid)
-            
-        #handle the 3 different transcript types
-        if '-jpneng' in mods_file_name:
-            transcript_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':EnglishJapaneseTranscript')
-        elif '-jpn' in mods_file_name:
-            transcript_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':JapaneseTranscript')
-        elif '-eng' in mods_file_name:
-            transcript_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':EnglishTranscript')
-        else:
-            return False
-    
-        transcript_object_RELS_EXT.update()
+    #handle is transcript of
+    transcript_clip_element_list = transcript_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Video clip']")
+    if transcript_clip_element_list:
+        transcript_clip_file_name = transcript_clip_element_list[0].text
+        transcript_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isTranscriptOf'), clips_to_pids[transcript_clip_file_name])
+    else:
+        transcript_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isTranscriptOf'), movie_pid)
         
-        return True
-    return False
+    #handle the 3 different transcript types
+    if '-jpneng' in mods_file_name:
+        transcript_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':EnglishJapaneseTranscript')
+    elif '-jpn' in mods_file_name:
+        transcript_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':JapaneseTranscript')
+    elif '-eng' in mods_file_name:
+        transcript_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'), name_space + ':EnglishTranscript')
+    else:
+        return False
+
+    transcript_object_RELS_EXT.update()
+        
+    return True
 
     
 def handle_mods_file(mods_file_path):
@@ -436,7 +434,7 @@ if __name__ == '__main__':
     '''
     setup
     '''
-    name_space = u'hamilton7'
+    name_space = u'hamilton9'
         
     hamilton_rdf_name_space = fedora_relationships.rels_namespace('hamilton', 'http://hamilton.org/ontology#')
     fedora_model_namespace = fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#')
