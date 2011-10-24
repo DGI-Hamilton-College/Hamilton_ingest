@@ -239,9 +239,9 @@ def handle_misc_mods(misc_mods_parser, mods_file_name):
                 for path_element in path_list:
                     if 'currently unavailable' not in path_element:
                         if '.docx' in path_element.text:
-                            docx_file_path = path_element.text
+                            docx_file_path = os.path.normpath(os.path.join(mods_directory, path_element.text))
                         elif 'pdf' in path_element.text:
-                            pdf_file_path = path_element.text
+                            pdf_file_path = os.path.normpath(os.path.join(mods_directory, path_element.text))
             
             
             #datastreams
