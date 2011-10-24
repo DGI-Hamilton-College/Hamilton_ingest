@@ -187,7 +187,7 @@ def handle_misc_mods(misc_mods_parser, mods_file_name):
             #datastreams
             add_MODS_datastream(misc_object, mods_file_path)
             
-            presentation_file_path = get_file_path_from_xpath(misc_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Presentation]")
+            presentation_file_path = get_file_path_from_xpath(misc_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Presentation']")
             if presentation_file_path:
                 presentation_file_handle = open(presentation_file_path, 'rb')
                 try:
@@ -342,8 +342,6 @@ def handle_transcript_mods(transcript_mods_parser, mods_file_name):
     transcript_object_RELS_EXT = fedora_relationships.rels_ext(transcript_object,[hamilton_rdf_name_space, fedora_model_namespace])
     transcript_path = get_file_path_from_xpath(transcript_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Document']")
     time_synced_transcript_path = transcript_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Document with time-sync encoding']")
-    #todo: time synced stuff if there is some
-    
     
     
     #datastreams
@@ -502,7 +500,6 @@ if __name__ == '__main__':
     do ingest
     '''
     #create a movie and benshi object because parent pids must be known
-    #@todo: change the labels to be more meaningful later in the script
     mods_file_name = mods_file_names[0]
     
     #put in the JapaneseSilentFilmCollection collection object
