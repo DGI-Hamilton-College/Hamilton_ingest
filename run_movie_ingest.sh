@@ -4,7 +4,7 @@
 
 mkdir ./logs 
 
-echo "Calling movie ingester: ingest to fedora"
+echo "Running movie ingester: ingest to fedora"
 
 python ./movie_ingest.py ./ > ./logs/movie_ingest_report.txt
 

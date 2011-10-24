@@ -9,6 +9,7 @@ from fcrepo.connection import Connection, FedoraConnectionException
 from fcrepo.client import FedoraClient
 from islandoraUtils.metadata import fedora_relationships
 from lxml import etree
+from xml.sax.saxutils import unescape #used on the redirect
 
 '''
 Helper functions
@@ -64,7 +65,7 @@ def handle_clip_mods(clip_mods_parser, mods_file_name):
     
 
     clip_number =  mods_file_name[mods_file_name.find('-cp') + 3:mods_file_name.rfind('.')]
-    clip_number = mods_file_name.replace('-sub','')
+    clip_number = clip_number.replace('-sub','')
     
     clip_label=unicode(movie_name + '_' + mods_file_name[mods_file_name.find('-')+1:mods_file_name.rfind('.')])
     clip_object = fedora.createObject(clip_pid, label = clip_label)
@@ -209,7 +210,8 @@ def handle_misc_mods(misc_mods_parser, mods_file_name):
             #datastreams
             add_MODS_datastream(movie_object, mods_file_path)
             
-            opac_path = get_file_path_from_xpath(misc_mods_parser, "//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url']")
+            opac_path_list = misc_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url']")
+            opac_path = opac_path_list[0].text
             if opac_path:
                 try:
                     movie_object.addDataStream(u'OPAC', u'aTmpStr', label = u'OPAC',
@@ -344,7 +346,6 @@ def handle_transcript_mods(transcript_mods_parser, mods_file_name):
     add_MODS_datastream(transcript_object, mods_file_path)
         
     if time_synced_transcript_path:
-        print(time_synced_transcript_path)
         time_synced_transcript_handle = open(time_synced_transcript_path, 'rb')
         try:
             transcript_object.addDataStream(u'TimeSyncedTranscript', u'aTmpStr', label=u'POPCORN',
@@ -434,7 +435,7 @@ if __name__ == '__main__':
     '''
     setup
     '''
-    name_space = u'hamilton9'
+    name_space = u'hamilton'
         
     hamilton_rdf_name_space = fedora_relationships.rels_namespace('hamilton', 'http://hamilton.org/ontology#')
     fedora_model_namespace = fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#')
