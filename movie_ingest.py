@@ -508,7 +508,8 @@ if __name__ == '__main__':
             collection_object = fedora.createObject(collection_pid, label = collection_label)
             #add relationships
             collection_object_RELS_EXT=fedora_relationships.rels_ext(collection_object,fedora_model_namespace)
-            collection_object_RELS_EXT.addRelationship('isMemberOf','islandora:top')
+            collection_object_RELS_EXT.addRelationship('isMemberOf','islandora:root')
+            collection_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'),'islandora:collectionCModel')
             collection_object_RELS_EXT.update()
     #put in the benshi Islandora:BenshiMovie content model
     try:
@@ -520,8 +521,7 @@ if __name__ == '__main__':
             model_object = fedora.createObject(model_pid, label = u'BenshiMovieCModel')
             #add relationships
             model_object_RELS_EXT=fedora_relationships.rels_ext(model_object,fedora_model_namespace)
-            model_object_RELS_EXT.addRelationship('isMemberOf','islandora:top')
-            model_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'),'islandora:collectionCModel')
+            model_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'),'fedora-system:ContentModel-3.0')
             model_object_RELS_EXT.update()
     
     
