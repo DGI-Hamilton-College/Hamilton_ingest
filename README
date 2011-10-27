@@ -1,1 +1,21 @@
 May need to install pyPdf as a dependeny of islandoraUtils.
+
+
+Python 2.6 and lxml SOP:
+Where necessary modify the install for your architecture, version of EL and previously installed packages.
+
+
+rpm -ivh http://download.fedora.redhat.com/pub/epel/5/i386/epel-release-5-4.noarch.rpm'
+yum install python26
+yum install python26-distribute
+yum install python26-devel
+yum install gcc
+yum install libxslt-devel
+easy_install-2.6 lxml
+
+
+python26
+
+>>>from lxml import etree
+
+If you don't get an error you are home free.

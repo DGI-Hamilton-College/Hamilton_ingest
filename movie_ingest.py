@@ -394,7 +394,6 @@ def handle_transcript_mods(transcript_mods_parser, mods_file_name):
         
     return True
 
-    
 def handle_mods_file(mods_file_path):
     '''
     This function will determine which function to send the MODS data to for handling
@@ -435,6 +434,7 @@ if __name__ == '__main__':
     '''
     setup
     '''
+    #name_space = u'hamilton15'
     name_space = u'hamilton'
         
     hamilton_rdf_name_space = fedora_relationships.rels_namespace('hamilton', 'http://hamilton.org/ontology#')
