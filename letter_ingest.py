@@ -2,6 +2,7 @@
 Created on Sep 19, 2011
 This file handles the batch ingest of the civil war collection for hamilton
 @author: William Panting
+@todo: create a collection object and make all letters have the isMemberOf relationship to them.
 '''
 import logging, sys, os, ConfigParser, time#, shutil
 from fcrepo.connection import Connection, FedoraConnectionException
@@ -30,7 +31,7 @@ if __name__ == '__main__':
 
     #get config
     config = ConfigParser.ConfigParser()
-    #config.read(os.path.join(source_directory,'TESTcfg'))
+    #config.read(os.path.join(source_directory,'HAMILTON.cfg'))
     config.read(os.path.join(source_directory,'TEST.cfg'))
     solrUrl=config.get('Solr','url')
     fedoraUrl=config.get('Fedora','url')
@@ -46,8 +47,7 @@ if __name__ == '__main__':
     except FedoraConnectionException:
         logging.error('Error connecting to fedora, exiting'+'\n')
         sys.exit()
-    
-    
+
     #setup the directories
     mods_directory = os.path.join(source_directory, 'mods-xml')
     if not os.path.isdir(mods_directory):
@@ -81,6 +81,7 @@ if __name__ == '__main__':
     jp2_files = os.listdir(jp2_directory)
     pdf_files = os.listdir(pdf_directory)
     
+    name_space = u'hamiltonTest1'
     
     '''
     do ingest
@@ -94,7 +95,7 @@ if __name__ == '__main__':
             book_name = mods_file[:mods_file.find('_')]
             
             #create a book object
-            book_pid = fedora.getNextPID(u'hamilton')
+            book_pid = fedora.getNextPID(name_space)
             book_label=unicode(book_name)
             book_object = fedora.createObject(book_pid, label = book_label)
             
@@ -143,7 +144,7 @@ if __name__ == '__main__':
             
             #add relationships
             objRelsExt=fedora_relationships.rels_ext(book_object,fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#'))
-            objRelsExt.addRelationship('isMemberOf','islandora:top')#this might change to a collection hamilton:cwl
+            objRelsExt.addRelationship('isMemberOf','islandora:root')#this MUST change to a collection hamilton:cwl
             objRelsExt.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'),'islandora:bookCModel')
             objRelsExt.update()
             
@@ -161,7 +162,7 @@ if __name__ == '__main__':
             for jp2_file in book_page_jp2_files:
                 #create an object for each
                 page_name = jp2_file[jp2_file.find('-') + 1:jp2_file.find('.')]
-                page_pid = fedora.getNextPID(u'hamilton')
+                page_pid = fedora.getNextPID(name_space)
                 page_label = book_label + '_' + page_name
                 page_label = unicode(page_label)
                 page_object = fedora.createObject(page_pid, label = page_label)
