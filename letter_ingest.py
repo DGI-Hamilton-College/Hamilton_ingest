@@ -3,6 +3,7 @@ Created on Sep 19, 2011
 This file handles the batch ingest of the civil war collection for hamilton
 @author: William Panting
 @todo: create a collection object and make all letters have the isMemberOf relationship to them.
+@todo: change the page pids to follow the examples in the release beta
 '''
 import logging, sys, os, ConfigParser, time#, shutil
 from fcrepo.connection import Connection, FedoraConnectionException
