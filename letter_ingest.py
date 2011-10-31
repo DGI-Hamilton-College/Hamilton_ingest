@@ -21,7 +21,9 @@ if __name__ == '__main__':
     '''
     setup
     '''
-        
+    hamilton_rdf_name_space = fedora_relationships.rels_namespace('hamilton', 'http://hamilton.org/ontology#')
+    fedora_model_namespace = fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#')
+    
         
     #configure logging
     log_directory=os.path.join(source_directory,'logs')
@@ -82,12 +84,35 @@ if __name__ == '__main__':
     jp2_files = os.listdir(jp2_directory)
     pdf_files = os.listdir(pdf_directory)
     
-    name_space = u'hamiltonTest1'
+    name_space = u'hamiltonTest3'
     
     '''
     do ingest
     '''
-        
+        #put in the JapaneseSilentFilmCollection collection object
+    try:
+        collection_label = u'UnitedStatesCivilWarLetters'
+        collection_pid = unicode(name_space + ':' + collection_label)
+        collection_policy = u'<collection_policy xmlns="http://www.islandora.ca" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="" xsi:schemaLocation="http://www.islandora.ca">  <content_models>    <content_model dsid="ISLANDORACM" name="Book Content Model" namespace="islandora:1" pid="islandora:bookCModel"></content_model>  </content_models>  <search_terms></search_terms>  <staging_area></staging_area>  <relationship>isMemberOf</relationship></collection_policy>'
+        fedora.getObject(collection_pid)
+    except FedoraConnectionException, object_fetch_exception:
+        if object_fetch_exception.httpcode in [404]:
+            logging.info(name_space + ':UnitedStatesCivilWarLetters missing, creating object.\n')
+            collection_object = fedora.createObject(collection_pid, label = collection_label)
+            #collection_policy
+            try:
+                collection_object.addDataStream(u'COLLECTION_POLICY', collection_policy, label=u'COLLECTION_POLICY',
+                mimeType=u'text/xml', controlGroup=u'X',
+                logMessage=u'Added basic COLLECTION_POLICY data.')
+                logging.info('Added COLLECTION_POLICY datastream to:' + collection_pid)
+            except FedoraConnectionException:
+                logging.error('Error in adding COLLECTION_POLICY datastream to:' + collection_pid + '\n')
+            
+            #add relationships
+            collection_object_RELS_EXT = fedora_relationships.rels_ext(collection_object, fedora_model_namespace)
+            collection_object_RELS_EXT.addRelationship('isMemberOf','islandora:root')
+            collection_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'),'islandora:collectionCModel')
+            collection_object_RELS_EXT.update()
 
     #loop through the mods folder
     for mods_file in mods_files:
@@ -144,8 +169,8 @@ if __name__ == '__main__':
                 logging.error('Error in adding tei datastream to:' + book_pid + '\n')
             
             #add relationships
-            objRelsExt=fedora_relationships.rels_ext(book_object,fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#'))
-            objRelsExt.addRelationship('isMemberOf','islandora:root')#this MUST change to a collection hamilton:cwl
+            objRelsExt=fedora_relationships.rels_ext(book_object, fedora_model_namespace)
+            objRelsExt.addRelationship('isMemberOf', collection_pid)
             objRelsExt.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'),'islandora:bookCModel')
             objRelsExt.update()
             
@@ -164,7 +189,7 @@ if __name__ == '__main__':
                 #create an object for each
                 page_name = jp2_file[jp2_file.find('-') + 1:jp2_file.find('.')]
                 page_pid = fedora.getNextPID(name_space)
-                page_label = book_label + '_' + page_name
+                page_label = book_label + '-' + page_name
                 page_label = unicode(page_label)
                 page_object = fedora.createObject(page_pid, label = page_label)
                 
@@ -201,8 +226,8 @@ if __name__ == '__main__':
                 
                 
                 #add relationships
-                objRelsExt=fedora_relationships.rels_ext(page_object, fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#'))
-                objRelsExt.addRelationship('isMemberOf', book_pid)#this might change to a collection hamilton:cwl
+                objRelsExt=fedora_relationships.rels_ext(page_object, fedora_model_namespace)
+                objRelsExt.addRelationship('isMemberOf', book_pid)
                 objRelsExt.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'),'islandora:pageCModel')
                 objRelsExt.update()
     sys.exit()

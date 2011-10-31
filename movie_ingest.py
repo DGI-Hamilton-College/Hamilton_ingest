@@ -501,11 +501,21 @@ if __name__ == '__main__':
     try:
         collection_label = u'JapaneseSilentFilmCollection'
         collection_pid = unicode(name_space + ':' + collection_label)
+        collection_policy = u'<collection_policy xmlns="http://www.islandora.ca" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="" xsi:schemaLocation="http://www.islandora.ca">  <content_models>    <content_model dsid="ISLANDORACM" name="BenshiMovieCModel" namespace="islandora:1" pid="islandora:benshiMovie"></content_model>  </content_models>  <search_terms></search_terms>  <staging_area></staging_area>  <relationship>isMemberOf</relationship></collection_policy>'
         fedora.getObject(collection_pid)
     except FedoraConnectionException, object_fetch_exception:
         if object_fetch_exception.httpcode in [404]:
             logging.info(name_space + ':JapaneseSilentFilmCollection missing, creating object.\n')
             collection_object = fedora.createObject(collection_pid, label = collection_label)
+            #collection_policy
+            try:
+                collection_object.addDataStream(u'COLLECTION_POLICY', collection_policy, label=u'COLLECTION_POLICY',
+                mimeType=u'text/xml', controlGroup=u'X',
+                logMessage=u'Added basic COLLECTION_POLICY data.')
+                logging.info('Added COLLECTION_POLICY datastream to:' + collection_pid)
+            except FedoraConnectionException:
+                logging.error('Error in adding COLLECTION_POLICY datastream to:' + collection_pid + '\n')
+            
             #add relationships
             collection_object_RELS_EXT=fedora_relationships.rels_ext(collection_object,fedora_model_namespace)
             collection_object_RELS_EXT.addRelationship('isMemberOf','islandora:root')
