@@ -84,7 +84,7 @@ if __name__ == '__main__':
     jp2_files = os.listdir(jp2_directory)
     pdf_files = os.listdir(pdf_directory)
     
-    name_space = u'hamiltonTest3'
+    name_space = u'hamiltonTest9'
     
     '''
     do ingest
@@ -188,8 +188,9 @@ if __name__ == '__main__':
             for jp2_file in book_page_jp2_files:
                 #create an object for each
                 page_name = jp2_file[jp2_file.find('-') + 1:jp2_file.find('.')]
-                page_pid = fedora.getNextPID(name_space)
+                #page_pid = fedora.getNextPID(name_space)
                 page_label = book_label + '-' + page_name
+                page_pid = name_space + book_pid[book_pid.find(':'):] + '-' + page_name
                 page_label = unicode(page_label)
                 page_object = fedora.createObject(page_pid, label = page_label)
                 

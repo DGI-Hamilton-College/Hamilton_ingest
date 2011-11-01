@@ -449,8 +449,8 @@ if __name__ == '__main__':
 
     #get config
     config = ConfigParser.ConfigParser()
-    #config.read(os.path.join(source_directory,'HAMILTON.cfg'))
-    config.read(os.path.join(source_directory,'TEST.cfg'))
+    config.read(os.path.join(source_directory,'HAMILTON.cfg'))
+    #config.read(os.path.join(source_directory,'TEST.cfg'))
     solrUrl=config.get('Solr','url')
     fedoraUrl=config.get('Fedora','url')
     fedoraUserName=config.get('Fedora', 'username')
