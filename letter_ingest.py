@@ -84,7 +84,7 @@ if __name__ == '__main__':
     jp2_files = os.listdir(jp2_directory)
     pdf_files = os.listdir(pdf_directory)
     
-    name_space = u'hamiltonTest9'
+    name_space = u'hamiltonTest13'
     
     '''
     do ingest
@@ -162,7 +162,7 @@ if __name__ == '__main__':
             tei_file_handle.close()
             try:
                 book_object.addDataStream(u'TEI', unicode(tei_contents, encoding = 'UTF-8'), label=u'TEI',
-                mimeType=u'text/xml', controlGroup=u'M',
+                mimeType=u'application/tei+xml', controlGroup=u'M',
                 logMessage=u'Added basic tei meta data.')
                 logging.info('Added tei datastream to:' + book_pid)
             except FedoraConnectionException:
@@ -209,6 +209,7 @@ if __name__ == '__main__':
                 jp2_file_handle.close()
                 
                 #add tei file from tei-xml/pages, there might not be one
+                #we have to call these the ocr DS to make them work nice with the viewer
                 tei_file = book_name + '_TEIP5_page_' + str(int(page_name)) + '.xml'
                 tei_file_path = os.path.join(source_directory, 'tei-xml/pages', tei_file)
                 if os.path.isfile(tei_file_path):
@@ -219,11 +220,11 @@ if __name__ == '__main__':
                     tei_file_handle.close()
                     try:
                         page_object.addDataStream(u'TEI', unicode(tei_contents, encoding = 'UTF-8'), label=u'TEI',
-                        mimeType=u'text/xml', controlGroup=u'M',
-                        logMessage=u'Added basic tei meta data.')
-                        logging.info('Added tei datastream to:' + page_pid)
+                        mimeType=u'application/tei+xml', controlGroup=u'M',
+                        logMessage=u'Added basic tei.')
+                        logging.info('Added TEI datastream to:' + page_pid)
                     except FedoraConnectionException:
-                        logging.error('Error in adding tei datastream to:' + page_pid + '\n')
+                        logging.error('Error in adding TEI datastream to:' + page_pid + '\n')
                 
                 
                 #add relationships
