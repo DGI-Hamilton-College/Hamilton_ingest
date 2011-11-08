@@ -435,7 +435,7 @@ if __name__ == '__main__':
     setup
     '''
     #name_space = u'hamilton15'
-    name_space = u'hamilton'
+    name_space = u'HamiltonJapaneseComparativeFilm'
         
     hamilton_rdf_name_space = fedora_relationships.rels_namespace('hamilton', 'http://hamilton.org/ontology#')
     fedora_model_namespace = fedora_relationships.rels_namespace('fedora-model','info:fedora/fedora-system:def/model#')
