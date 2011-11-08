@@ -16,3 +16,14 @@ python26
 >>>from lxml import etree
 
 If you don't get an error you are home free.
+
+You will need a config file like this
+TEST.cfg
+
+
+[Fedora]
+url:http://localhost:8080/fedora
+username: fedoraAdmin
+password: islandora
+[Solr]
+url:http://localhost:8080/solr
