@@ -571,6 +571,21 @@ if __name__ == '__main__':
             mods_file_names.remove(mods_file_name)
     print('Main Clips ingested')
     
+    
+    #loop through the mods folder and ingest the clips with subs because these parent pids must be known too
+    mods_file_names_copy = list(mods_file_names)
+    for mods_file_name in mods_file_names_copy:
+        #proceed if mods file is for a clip with subs
+        if '-cp' in mods_file_name and '-sub' in mods_file_name:
+            mods_file_path = os.path.join(mods_directory, mods_file_name)
+            #ingest
+            if handle_mods_file(mods_file_path) is False:
+                logging.error('Error handling mods_file_name: ' + mods_file_path + ' \n')
+                sys.exit()
+            #remove the file from mods_file_names list
+            mods_file_names.remove(mods_file_name)
+    print('Clips with subs ingested')
+    
     #loop through the rest of the files and ingest the data
     for mods_file_name in mods_file_names:
         mods_file_path = os.path.join(mods_directory, mods_file_name)
