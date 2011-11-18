@@ -85,6 +85,7 @@ if __name__ == '__main__':
     pdf_files = os.listdir(pdf_directory)
     
     name_space = u'HamiltonCivilWar'
+    #name_space = u'HamiltonCivilWar2'
     
     '''
     do ingest
