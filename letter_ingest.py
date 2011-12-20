@@ -5,7 +5,7 @@ This file handles the batch ingest of the civil war collection for hamilton
 @todo: create a collection object and make all letters have the isMemberOf relationship to them.
 @todo: change the page pids to follow the examples in the release beta
 '''
-import logging, sys, os, ConfigParser, time#, shutil
+import logging, sys, os, ConfigParser, time, subprocess#, shutil
 from fcrepo.connection import Connection, FedoraConnectionException
 from fcrepo.client import FedoraClient
 from islandoraUtils.metadata import fedora_relationships
@@ -26,20 +26,20 @@ if __name__ == '__main__':
     
         
     #configure logging
-    log_directory=os.path.join(source_directory,'logs')
+    log_directory = os.path.join(source_directory,'logs')
     if not os.path.isdir(log_directory):
         os.mkdir(log_directory)
-    logFile=os.path.join(log_directory,'Hamilton_batch_letter_ingest' + time.strftime('%y_%m_%d') + '.log')
+    logFile = os.path.join(log_directory,'Hamilton_batch_letter_ingest' + time.strftime('%y_%m_%d') + '.log')
     logging.basicConfig(filename=logFile, level=logging.DEBUG)
 
     #get config
     config = ConfigParser.ConfigParser()
-    config.read(os.path.join(source_directory,'HAMILTON.cfg'))
-    #config.read(os.path.join(source_directory,'TEST.cfg'))
-    solrUrl=config.get('Solr','url')
-    fedoraUrl=config.get('Fedora','url')
-    fedoraUserName=config.get('Fedora', 'username')
-    fedoraPassword=config.get('Fedora','password')
+    #config.read(os.path.join(source_directory,'HAMILTON.cfg'))
+    config.read(os.path.join(source_directory,'TEST.cfg'))
+    solrUrl = config.get('Solr','url')
+    fedoraUrl = config.get('Fedora','url')
+    fedoraUserName = config.get('Fedora', 'username')
+    fedoraPassword = config.get('Fedora','password')
             
     #get fedora connection
     connection = Connection(fedoraUrl,
@@ -123,7 +123,7 @@ if __name__ == '__main__':
             
             #create a book object
             book_pid = fedora.getNextPID(name_space)
-            book_label=unicode(book_name)
+            book_label = unicode(book_name)
             book_object = fedora.createObject(book_pid, label = book_label)
             
             #add mods datastream
@@ -132,18 +132,18 @@ if __name__ == '__main__':
             mods_contents = mods_file_handle.read()
             mods_file_handle.close()
             try:
-                book_object.addDataStream(u'MODS', unicode(mods_contents), label=u'MODS',
-                mimeType=u'text/xml', controlGroup=u'X',
-                logMessage=u'Added basic mods meta data.')
-                logging.info('Added MODS datastream to:'+book_pid)
+                book_object.addDataStream(u'MODS', unicode(mods_contents), label = u'MODS',
+                mimeType = u'text/xml', controlGroup = u'X',
+                logMessage = u'Added basic mods meta data.')
+                logging.info('Added MODS datastream to:' + book_pid)
             except FedoraConnectionException:
-                logging.error('Error in adding MODS datastream to:'+book_pid+'\n')
+                logging.error('Error in adding MODS datastream to:' + book_pid + '\n')
             
             #add pdf ds
             pdf_file = book_name + '.pdf'
             pdf_file_path = os.path.join(source_directory, 'images-pdf', pdf_file)
-            print(pdf_file_path)
             pdf_file_handle = open(pdf_file_path, 'rb')
+            
             try:
                 book_object.addDataStream(u'PDF', u'aTmpStr', label=u'PDF',
                 mimeType = u'application/pdf', controlGroup = u'M',
@@ -163,14 +163,14 @@ if __name__ == '__main__':
             tei_file_handle.close()
             try:
                 book_object.addDataStream(u'TEI', unicode(tei_contents, encoding = 'UTF-8'), label=u'TEI',
-                mimeType=u'application/tei+xml', controlGroup=u'M',
-                logMessage=u'Added basic tei meta data.')
+                mimeType = u'application/tei+xml', controlGroup=u'M',
+                logMessage = u'Added basic tei meta data.')
                 logging.info('Added tei datastream to:' + book_pid)
             except FedoraConnectionException:
                 logging.error('Error in adding tei datastream to:' + book_pid + '\n')
             
             #add relationships
-            objRelsExt=fedora_relationships.rels_ext(book_object, fedora_model_namespace)
+            objRelsExt = fedora_relationships.rels_ext(book_object, fedora_model_namespace)
             objRelsExt.addRelationship('isMemberOf', collection_pid)
             objRelsExt.addRelationship(fedora_relationships.rels_predicate('fedora-model','hasModel'),'islandora:bookCModel')
             objRelsExt.update()
@@ -194,9 +194,31 @@ if __name__ == '__main__':
                 page_pid = name_space + book_pid[book_pid.find(':'):] + '-' + page_name
                 page_label = unicode(page_label)
                 page_object = fedora.createObject(page_pid, label = page_label)
+                jp2_file_path = os.path.join(source_directory, 'images-jp2', jp2_file)
+                
+                #add a thumnail to the book if apropriate
+                if page_name == '001':
+                    #create thumbnail
+                    tn_file_path = jp2_file_path + '.jpg'
+                    image_magic_call = ["convert", jp2_file_path, '-compress', 'JPEG', "-thumbnail", "150x150!", "-gravity", "center", "-extent", "150x150", tn_file_path]
+                    response = subprocess.call(image_magic_call)
+                    #ingest thumbnail
+                    print('thumbnails ohh my: ' + book_pid)
+                    print(tn_file_path)
+                    #tn_file_path = os.path.join(source_directory, 'images-jp2', jp2_file)
+                    tn_file_handle = open(tn_file_path, 'rb')
+                    try:
+                        book_object.addDataStream(u'TN', u'aTmpStr', label = u'TN',
+                        mimeType = u'image/jpg', controlGroup = u'M',
+                        logMessage = u'Added TN datastream.')
+                        datastream = book_object['TN']
+                        datastream.setContent(tn_file_handle)
+                        logging.info('Added TN datastream to:' + book_pid)
+                    except FedoraConnectionException:
+                        logging.error('Error in adding TN datastream to:' + book_pid + '\n')
+                    tn_file_handle.close()
                 
                 #add jp2 ds
-                jp2_file_path = os.path.join(source_directory, 'images-jp2', jp2_file)
                 jp2_file_handle = open(jp2_file_path, 'rb')
                 try:
                     page_object.addDataStream(u'JP2', u'aTmpStr', label=u'JP2',
@@ -215,8 +237,6 @@ if __name__ == '__main__':
                 tei_file_path = os.path.join(source_directory, 'tei-xml/pages', tei_file)
                 if os.path.isfile(tei_file_path):
                     tei_file_handle = open(tei_file_path)
-                    print(tei_file_handle)
-                    print(tei_contents)
                     tei_contents = tei_file_handle.read()
                     tei_file_handle.close()
                     try:
