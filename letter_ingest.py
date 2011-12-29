@@ -9,6 +9,7 @@ import logging, sys, os, ConfigParser, time, subprocess#, shutil
 from fcrepo.connection import Connection, FedoraConnectionException
 from fcrepo.client import FedoraClient
 from islandoraUtils.metadata import fedora_relationships
+from lxml import etree
 
 if __name__ == '__main__':
     if len(sys.argv) == 2:
@@ -118,18 +119,25 @@ if __name__ == '__main__':
     #loop through the mods folder
     for mods_file in mods_files:
         if mods_file.endswith('MODS.xml'):
-            
-            book_name = mods_file[:mods_file.find('_')]
-            
-            #create a book object
-            book_pid = fedora.getNextPID(name_space)
-            book_label = unicode(book_name)
-            book_object = fedora.createObject(book_pid, label = book_label)
-            
-            #add mods datastream
+            #get mods file contents
             mods_file_path = os.path.join(source_directory, 'mods-xml', mods_file)
             mods_file_handle = open(mods_file_path)
             mods_contents = mods_file_handle.read()
+            
+            #get book_label from mods title
+            mods_tree = etree.parse(mods_file_path)
+            book_label = mods_tree.xpath("*[local-name() = 'titleInfo']/*[local-name() = 'title']/text()")
+            book_label = book_label[0]
+            if len(book_label) > 255:
+                book_label = book_label[0:250] + '...'
+            print(book_label)
+            book_label = unicode(book_label)
+            
+            #create a book object
+            book_pid = fedora.getNextPID(name_space)
+            book_object = fedora.createObject(book_pid, label = book_label)
+            
+            #add mods datastream
             mods_file_handle.close()
             try:
                 book_object.addDataStream(u'MODS', unicode(mods_contents), label = u'MODS',
@@ -140,6 +148,8 @@ if __name__ == '__main__':
                 logging.error('Error in adding MODS datastream to:' + book_pid + '\n')
             
             #add pdf ds
+            
+            book_name = mods_file[:mods_file.find('_')]
             pdf_file = book_name + '.pdf'
             pdf_file_path = os.path.join(source_directory, 'images-pdf', pdf_file)
             pdf_file_handle = open(pdf_file_path, 'rb')
@@ -200,11 +210,10 @@ if __name__ == '__main__':
                 if page_name == '001':
                     #create thumbnail
                     tn_file_path = jp2_file_path + '.jpg'
-                    image_magic_call = ["convert", jp2_file_path, '-compress', 'JPEG', "-thumbnail", "150x150!", "-gravity", "center", "-extent", "150x150", tn_file_path]
+                    image_magic_call = ["convert", jp2_file_path, '-compress', 'JPEG', "-thumbnail", "x100", "-gravity", "center", "-extent", "x100", tn_file_path]
                     response = subprocess.call(image_magic_call)
+                    
                     #ingest thumbnail
-                    print('thumbnails ohh my: ' + book_pid)
-                    print(tn_file_path)
                     #tn_file_path = os.path.join(source_directory, 'images-jp2', jp2_file)
                     tn_file_handle = open(tn_file_path, 'rb')
                     try:
