@@ -374,7 +374,7 @@ def handle_transcript_mods(transcript_mods_parser, mods_file_name):
     #relationships
     #handle is transcript of
     transcript_clip_element_list = transcript_mods_parser.xpath("//*[local-name() = 'mods']//*[local-name() = 'location']//*[local-name() = 'url'][@displayLabel='Video clip']")
-    if transcript_clip_element_list:
+    if len(transcript_clip_element_list) == 1:#there are multiple related items if the transcript is for the whole movie
         transcript_clip_file_name = transcript_clip_element_list[0].text
         transcript_object_RELS_EXT.addRelationship(fedora_relationships.rels_predicate('hamilton','isTranscriptOf'), clips_to_pids[transcript_clip_file_name])
     else:
