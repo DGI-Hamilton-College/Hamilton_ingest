@@ -31,5 +31,6 @@ if __name__ == '__main__':
     #run through each file in the directory
     for file in os.listdir(source_directory):
         file_path = os.path.join(source_directory, file)
+        print(file)
         if os.path.isfile(file_path) and (file_path.endswith('.xml') or file_path.endswith('.tei') or file_path.endswith('.TEI') or file_path.endswith('.XML')):
             fileManipulator.breakTEIOnPages(file_path, destination_directory, force_numeric_page_numbers = True)
