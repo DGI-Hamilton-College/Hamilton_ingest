@@ -1,0 +1,473 @@
+<?php
+
+/**
+ * Implements hook_menu().
+ */
+function hamilton_migration_menu() {
+  $items = array();
+  $items['hamilton/migration'] = array(
+    'title' => t('Hamilton Migration'),
+    'type' => MENU_CALLBACK,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('hamilton_migration_form'),
+    'access arguments' => array(FEDORA_VIEW_OBJECTS)
+  );
+  return $items;
+}
+
+/**
+ * Place holder form to kick off the batch.
+ */
+function hamilton_migration_form($form, &$form_state) {
+  $form = array();
+  $form['migration'] = array(
+    '#type' => 'select',
+    '#options' => array('books' => 'books', 'large_images' => 'large_images', 'videos' => 'videos'),
+  );
+   $form['button'] = array(
+    '#type' => 'submit',
+    '#value' => 'Batch',
+  );
+  return $form;
+}
+
+/**
+ * Submit handler for the hamilton_migration form.
+ */
+function hamilton_migration_form_submit($form, &$form_state) {
+  $type = $form_state['values']['migration'];
+  batch_set(hamilton_migration_batch($type));
+}
+
+/**
+ * Constructs a batch to go through objects.
+ */
+function hamilton_migration_batch($type) {
+  $objs = hamilton_migration_scan_for_objs($type);
+  $context = array('success' => array(), 'fail' => array());
+  $operations[] = array('hamilton_migration_construct_objects', array($objs, $type), $context);
+  $batch = array(
+    'operations' => $operations,
+    'finished' => 'hamilton_migration_batch_finished',
+  );
+  return $batch;
+}
+
+/**
+ * Success or fail on finish.
+ */
+function hamilton_batch_finished($success, $results, $operations) {
+  if ($success) {
+    dsm($results, 'results');
+  }
+  else {
+    // An error occurred.
+    // $operations contains the operations that remained unprocessed.
+    $error_operation = reset($operations);
+    drupal_set_message(t('An error occurred while processing @operation with arguments : @args', array('@operation' => $error_operation[0], '@args' => print_r($error_operation[0], TRUE))));
+  }
+}
+
+
+/**
+ * Scans through the "data" directory within the Drupal file system to create
+ * arrays of files to attempt to process. Similar to how islandora_batch goes
+ * through.
+ *
+ * @param string $type
+ *   The type of objects we are searching for (book, videos, large_images).
+ * @return array
+ *   Hashed out array containing base structure for objects.
+ */
+function hamilton_migration_scan_for_objs($type) {
+  module_load_include('inc', 'islandora', 'includes/utilities');
+  $files = file_scan_directory('public://data/' . $type, '/(.*)/');
+  $obj_array = array();
+  $shared_files = array();
+
+  foreach($files as $values) {
+    // Handles a unique case of naming with the source data where a book was
+    // sharing a DOCX across multiple child objects.
+    preg_match('/public:\/\/data\/' . $type . '\/(.*)\/' . $values->filename . '/', $values->uri, $match);
+    if (count($match) > 1) {
+      if ($match[0] != 'public://data/books/shahid-poe008/shahid-poe008-001to008-tran.docx') {
+        $obj_name = $match[1];
+        // If we already don't have an entry for this type in our object array.
+        if (!array_key_exists($obj_name, $obj_array)) {
+          $obj_array[$obj_name] = array();
+          if ($type == 'books') {
+            $obj_array[$obj_name]['model'] = array('islandora:bookCModel');
+            $obj_array[$obj_name]['rels'] = array(array('relationship' => 'isMemberOfCollection', 'pid' => 'islandora:bookCollection'));
+          }
+          elseif ($type == 'large_images') {
+            $obj_array[$obj_name]['model'] = array('islandora:sp_large_image_cmodel');
+            $obj_array[$obj_name]['rels'] = array(array('relationship' => 'isMemberOfCollection', 'pid' => 'islandora:sp_large_image_collection'));
+          }
+          elseif ($type == 'videos') {
+            $obj_array[$obj_name]['model'] = array('islandora:sp_videoCModel');
+            $obj_array[$obj_name]['rels'] = array(array('relationship' => 'isMemberOfCollection', 'pid' => 'islandora:video_collection'));
+          }
+        }
+        $extension = pathinfo(drupal_realpath($values->uri), PATHINFO_EXTENSION);
+        // Book specific things.
+        if ($type == 'books') {
+          $temp_array = explode('-', $values->name);
+          $page_num = $temp_array[2];
+          $ds_array = array();
+          // Construct our datastream array depending what type of source we find.
+          if ($extension == 'tif') {
+            $ds_array = array(
+              'dsid' => 'OBJ',
+              'label' => $values->filename,
+              'mimetype' => 'image/tiff',
+              'control_group' => 'M',
+              'datastream_file' => $values->uri,
+            );
+          }
+          elseif ($extension == 'docx') {
+           $ds_array = array(
+              'dsid' => 'DOCX',
+              'label' => $values->filename,
+              'mimetype' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              'control_group' => 'M',
+              'datastream_file' => $values->uri,
+            );
+          }
+          elseif ($extension == 'txt') {
+            $ds_array = array(
+              'dsid' => 'TRANSCRIPTION',
+              'label' => 'English Transcription',
+              'mimetype' => 'text/plain',
+              'control_group' => 'M',
+              'datastream_file' => $values->uri,
+            );
+          }
+          // Create a new 'page' object within our book
+          $obj_array[$obj_name]['pages'][$page_num]['label'] = $obj_name . '-' . $page_num;
+          $obj_array[$obj_name]['pages'][$page_num]['model'] = array('islandora:pageCModel');
+
+          if (count($ds_array)) {
+            $obj_array[$obj_name]['pages'][$page_num]['ds_array'][] = $ds_array;
+          }
+        }
+        elseif ($type == 'large_images') {
+          if ($extension == 'tif') {
+            $ds_array = array(
+              'dsid' => 'OBJ',
+              'label' => $values->filename,
+              'mimetype' => 'image/tiff',
+              'control_group' => 'M',
+              'datastream_file' => $values->uri,
+            );
+          }
+          // Add the addtional things required from our built datastream array.
+          $obj_array[$obj_name]['ds_array'][] = $ds_array;
+        }
+        elseif ($type == 'videos') {
+          if ($extension == 'mp4') {
+            $ds_array = array(
+              'dsid' => 'OBJ',
+              'label' => $values->filename,
+              'mimetype' => 'video/mp4',
+              'control_group' => 'M',
+              'datastream_file' => $values->uri,
+            );
+          }
+          elseif ($extension == 'docx') {
+            $ds_array = array(
+              'dsid' => 'DOCX',
+              'label' => $values->filename,
+              'mimetype' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              'control_group' => 'M',
+              'datastream_file' => $values->uri,
+            );
+          }
+          $obj_array[$obj_name]['ds_array'][] = $ds_array;
+        }
+      }
+      // File is shared across objects.
+      else {
+        $shared_files[$type][] = $values;
+      }
+    }
+    // File is shared across objects.
+    else {
+      $shared_files[$type][] = $values;
+    }
+  }
+  // Files to be shared across objects.
+  if (count($shared_files)) {
+    foreach ($shared_files as $key => $files) {
+      foreach ($files as $file) {
+        preg_match('/public:\/\/data\/' . $type . '\/(.*)\//', $file->uri, $match);
+        $book_name = $match[1];
+        preg_match('/' . $book_name . '-(.*)\+(.*)-/', $file->name, $ext_match);
+        // Case where we don't share the same DOCX across all page objects.
+        if ($book_name != 'shahid-poe008') {
+          $extension = pathinfo(drupal_realpath($file->uri), PATHINFO_EXTENSION);
+
+          if ($extension == 'docx') {
+            $docx = array(
+              'dsid' => 'DOCX',
+              'label' => $file->filename,
+              'mimetype' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              'control_group' => 'M',
+              'datastream_file' => $file->uri,
+            );
+            $obj_array[$book_name]['pages'][$ext_match[1]]['ds_array'][] = $docx;
+            $obj_array[$book_name]['pages'][$ext_match[2]]['ds_array'][] = $docx;
+          }
+          elseif ($extension == 'tif') {
+            // Special case where we cropped pages to conform with the book
+            // solution pack. Here we construct separate image objects and put
+            // a reference to them in the RELS-EXT.
+            $ds_array = array(
+              'dsid' => 'OBJ',
+              'label' => $file->filename,
+              'mimetype' => 'image/tiff',
+              'control_group' => 'M',
+              'datastream_file' => $file->uri,
+            );
+            $temp_object = islandora_prepare_new_object('hamilton', $file->name, array($ds_array), array('islandora:sp_large_image_cmodel'), array());
+            $success = islandora_add_object($temp_object);
+            dd($temp_object->id, 'Added cropped image');
+            $rel = array('relationship' => 'isCropOf', 'pid' => $temp_object->id);
+
+            $obj_array[$book_name]['pages'][$ext_match[1]]['rels_array'][] = $rel;
+            $obj_array[$book_name]['pages'][$ext_match[2]]['rels_array'][] = $rel;
+          }
+        }
+        else {
+          $count = 1;
+          $docx = array(
+              'dsid' => 'DOCX',
+              'label' => $file->filename,
+              'mimetype' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              'control_group' => 'M',
+              'datastream_file' => $file->uri,
+            );
+          while ($count <= 8) {
+            $obj_array[$book_name]['pages']['00' . $count]['ds_array'][] = $docx;
+            $count++;
+          }
+        }
+      }
+    }
+  }
+  return $obj_array;
+}
+
+/**
+ * Construct a book array that holds mappings specific to each book from the
+ * Hamilton supplied spreadsheet.
+ *
+ * @param array $params
+ *   An associate array containing the name of the book and the number of pages
+ *   it is to have.
+ *
+ * @return array
+ *   Constructed book array.
+ */
+function hamilton_migration_construct_books_array(array $params) {
+  $book_array = array();
+  $count = 1;
+
+  foreach ($params as $param) {
+    while ($count <= $param['num']) {
+      if ($count >= 10) {
+        $format_num = '0' . $count;
+      }
+      else {
+        $format_num = '00' . $count;
+      }
+      $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num] = array();
+
+      if ($param['book_name'] == 'shahid-ess-001') {
+        $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = ($count + 128);
+      }
+      elseif ($param['book_name'] == 'shahid-man007') {
+        if ($count == 1) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = 'iii';
+        }
+        elseif ($count == 2) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = 'iv';
+        }
+        elseif ($count == 3) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = 'v';
+        }
+        elseif ($count == 4) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '51';
+        }
+        elseif ($count == 5) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '5';
+        }
+        elseif ($count == 6) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '6';
+        }
+        elseif ($count == 7) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '54';
+        }
+      }
+      elseif ($param['book_name'] == 'shahid-mis001') {
+        if ($count == 1) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '46';
+        }
+        elseif ($count == 2) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '47';
+        }
+        elseif ($count == 3) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '48';
+        }
+        elseif ($count == 4) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '49';
+        }
+        elseif ($count == 5) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '50';
+        }
+        elseif ($count == 6) {
+
+        }
+        elseif ($count == 7) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '55';
+        }
+        elseif ($count == 8) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '56';
+        }
+      }
+      elseif ($param['book_name'] == 'shahid-poe007') {
+        $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '29';
+      }
+      elseif ($param['book_name'] == 'shahid-poe008') {
+        if ($count == 1) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '202';
+        }
+        elseif ($count == 2) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '203';
+        }
+        elseif ($count == 3) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '204';
+        }
+        elseif ($count == 4) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '205';
+        }
+        elseif ($count == 5) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '206';
+        }
+      }
+      elseif ($param['book_name'] == 'shahid-poe010') {
+        $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '40';
+      }
+      elseif ($param['book_name'] == 'shahid-poe011') {
+        if ($count == 1) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '374';
+        }
+        elseif ($count == 2) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '375';
+        }
+      }
+      elseif ($param['book_name'] == 'shahid-poe012') {
+        if ($count == 1) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '15';
+        }
+        elseif ($count == 2) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '16';
+        }
+      }
+      elseif ($param['book_name'] == 'shahid-poe013') {
+        if ($count == 1) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '9';
+        }
+        elseif ($count == 2) {
+          $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '10';
+        }
+      }
+      elseif ($param['book_name'] == 'shahid-poe014') {
+        $book_array[$param['book_name']][$param['book_name'] . '-' . $format_num]['page_num'] = '54';
+      }
+
+      $count++;
+    }
+    $count = 1;
+  }
+  return $book_array;
+}
+
+function hamilton_migration_construct_objects($obj_array, $type, &$context) {
+  if ($type == 'books') {
+    // Needed to store sequences #s etc.
+    $book_array = hamilton_migration_construct_books_array(
+      array(
+        array('book_name' => 'shahid-ess001', 'num' => 10),
+        array('book_name' => 'shahid-let008', 'num' => 2),
+        array('book_name' => 'shahid-man001', 'num' => 2),
+        array('book_name' => 'shahid-man007', 'num' => 5),
+        array('book_name' => 'shahid-man009', 'num' => 8),
+        array('book_name' => 'shahid-man010', 'num' => 1),
+        array('book_name' => 'shahid-man011', 'num' => 1),
+        array('book_name' => 'shahid-man046', 'num' => 1),
+        array('book_name' => 'shahid-mis001', 'num' => 8),
+        array('book_name' => 'shahid-poe007', 'num' => 1),
+        array('book_name' => 'shahid-poe008', 'num' => 5),
+        array('book_name' => 'shahid-poe010', 'num' => 1),
+        array('book_name' => 'shahid-poe011', 'num' => 2),
+        array('book_name' => 'shahid-poe012', 'num' => 2),
+        array('book_name' => 'shahid-poe013', 'num' => 2),
+        array('book_name' => 'shahid-poe014', 'num' => 1),
+      )
+    );
+  }
+  module_load_include('inc', 'islandora', 'includes/utilities');
+  module_load_include('inc', 'islandora_book', 'includes/utilities');
+
+  foreach($obj_array as $key => $values) {
+    // Prepare and ingest the base object.
+    $temp_object = islandora_prepare_new_object('hamilton', $key, array_key_exists('ds_array', $values) ? $values['ds_array'] : array(),  $values['model'], $values['rels']);
+    $success = islandora_add_object($temp_object);
+    if (!$success) {
+      $context['fail'][] = "The object $temp_object->id failed to ingest.";
+      dd("The object $temp_object->id failed to ingest.");
+    }
+    else {
+      $context['success'][] = "The object $temp_object->id successfully ingested.";
+      dd("The object $temp_object->id successfully ingested.");
+
+      // If our base object is a book, add page objects indiviudually.
+      if (array_key_exists('pages', $values)) {
+        $pages_array = $values['pages'];
+        $book_name = $key;
+        $book_pid = $temp_object->id;
+
+        foreach ($pages_array as $key => $page) {
+          $page_rels = array();
+
+          if (array_key_exists('page_num', $book_array[$book_name][$book_name . '-' . $key])) {
+            $page_rels[] = array('relationship' => 'isPageNumber', 'pid' => $book_array[$book_name][$book_name . '-' . $key]['page_num']);
+          }
+
+          if (array_key_exists('rels_array', $book_array[$book_name][$book_name . '-' . $key])) {
+            $page_rels[] = $book_array[$book_name][$book_name . '-' . $key]['rels_array'];
+          }
+
+          $temp_page_obj = islandora_prepare_new_object('hamilton', $page['label'], $page['ds_array'], $page['model'], $page_rels);
+          $temp_page_obj->relationships->add(ISLANDORA_RELS_EXT_URI, 'isSequenceNumber', $key, TRUE);
+          $temp_page_obj->relationships->add(ISLANDORA_RELS_EXT_URI, 'isPageOf', $book_pid, TRUE);
+          $temp_page_obj->relationships->add(FEDORA_RELS_EXT_URI, 'isMemberOf', $book_pid);
+          $temp_page_obj->relationships->add(ISLANDORA_RELS_EXT_URI, 'preprocess', 'false', TRUE);
+
+          $page_success = islandora_add_object($temp_page_obj);
+
+          if ($page_success) {
+            $context['success'][] = 'The page' . $temp_page_object->id . ' ('. $temp_page_obj->label . ') successfully ingested.';
+            dd('The page' . $temp_page_object->id . ' ('. $temp_page_obj->label . ') successfully ingested.');
+          }
+          else {
+            $context['fail'][] = 'The page' . $temp_page_object->id . ' ('. $temp_page_obj->label . ') failed ingesting.';
+            dd('The page' . $temp_page_object->id . ' ('. $temp_page_obj->label . ') failed ingesting.');
+          }
+        }
+      }
+    }
+  }
+}
+
+

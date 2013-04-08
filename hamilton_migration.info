@@ -1,0 +1,8 @@
+name = Hamilton Migration
+description = Hamilton Migration Tool
+package = Hamilton
+version = 7.x-dev
+core = 7.x
+dependencies[] = islandora
+
+
